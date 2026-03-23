@@ -1,6 +1,9 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowUUpLeft, ArrowUUpRight, Trash, Check, X } from '@phosphor-icons/react';
+import {
+  ArrowUUpLeft, ArrowUUpRight, Trash, Check, X,
+  DotsThreeOutlineVertical, FloppyDisk, DownloadSimple, FolderOpen,
+} from '@phosphor-icons/react';
 import ScreenShell from '../components/ScreenShell';
 import ScreenHeader from '../components/ScreenHeader';
 import WebGLCanvas, { type WebGLCanvasHandle } from '../components/WebGLCanvas';
@@ -11,6 +14,8 @@ import AdjustPanel from '../components/AdjustPanel';
 import CropTool from '../components/CropTool';
 import SaveModal from '../components/SaveModal';
 import { useImageStore, downloadBlob } from '../hooks/useImageStore';
+import { useFolderStore, type FolderMeta } from '../hooks/useFolderStore';
+import { metaStore } from '../store/db';
 import { useCategoryPrefs } from '../hooks/useCategoryPrefs';
 import { useWatermarkPref } from '../hooks/useWatermarkPref';
 import { applyWatermark } from '../engine/watermark';
@@ -61,6 +66,9 @@ export default function EditScreen() {
   const [historyIndex, setHistoryIndex] = useState(0);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showFolderPicker, setShowFolderPicker] = useState(false);
+  const { folders } = useFolderStore();
   const [strengthMode, setStrengthMode] = useState(false);
   const [filterStrength, setFilterStrength] = useState(100);
   const [pendingStrength, setPendingStrength] = useState(100);
@@ -272,15 +280,21 @@ export default function EditScreen() {
     navigate('/');
   }, [existingId, deleteImage, navigate]);
 
-  const handleSave = useCallback(() => {
-    if (!watermarkEnabled) {
-      handleConfirmSave(false);
-      return;
+  const handleSaveToApp = useCallback(async () => {
+    setShowMenu(false);
+    const handle = canvasHandle.current;
+    if (!handle?.renderer) return;
+    try {
+      if (sourceImg) handle.renderer.uploadImage(sourceImg);
+      const blob = await handle.renderer.toBlob();
+      await saveImage(blob, activeLutId ?? undefined, existingId);
+      navigate('/');
+    } catch (err) {
+      console.error('Save failed:', err);
     }
-    setShowSaveModal(true);
-  }, [watermarkEnabled]);
+  }, [activeLutId, saveImage, navigate, sourceImg, existingId]);
 
-  const handleConfirmSave = useCallback(async (withWatermark: boolean) => {
+  const handleConfirmDownload = useCallback(async (withWatermark: boolean) => {
     setShowSaveModal(false);
     const handle = canvasHandle.current;
     if (!handle?.renderer) return;
@@ -301,6 +315,34 @@ export default function EditScreen() {
       console.error('Save failed:', err);
     }
   }, [activeLutId, saveImage, navigate, sourceImg, existingId, watermarkEnabled]);
+
+  const handleDownload = useCallback(() => {
+    setShowMenu(false);
+    if (!watermarkEnabled) {
+      handleConfirmDownload(false);
+      return;
+    }
+    setShowSaveModal(true);
+  }, [watermarkEnabled, handleConfirmDownload]);
+
+  const handleMoveToFolder = useCallback(async (folder: FolderMeta) => {
+    setShowFolderPicker(false);
+    setShowMenu(false);
+    const handle = canvasHandle.current;
+    if (!handle?.renderer) return;
+    try {
+      if (sourceImg) handle.renderer.uploadImage(sourceImg);
+      const blob = await handle.renderer.toBlob();
+      const id = await saveImage(blob, activeLutId ?? undefined, existingId);
+      const existing = await metaStore.getItem<{ id: string; timestamp: number; lutId?: string; folderId?: string }>(id);
+      if (existing) {
+        await metaStore.setItem(id, { ...existing, folderId: folder.id });
+      }
+      navigate('/');
+    } catch (err) {
+      console.error('Move failed:', err);
+    }
+  }, [activeLutId, saveImage, navigate, sourceImg, existingId]);
 
   const enterStrengthMode = useCallback(() => {
     if (!activeLutId) return;
@@ -333,11 +375,119 @@ export default function EditScreen() {
     setStrengthMode(false);
   }, [filterStrength, sourceImg]);
 
+  // ── Long-press peek ───────────────────────────────────────────────
   const peekTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPeekingRef = useRef(false);
 
-  const handlePeekDown = useCallback((e: React.PointerEvent) => {
+  // ── Zoom / pan / pinch state (ref-based for 60fps) ──────────────
+  const imageWrapperRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef({ scale: 1, tx: 0, ty: 0 });
+  const [isZoomed, setIsZoomed] = useState(false);
+  const lastTapTimeRef = useRef(0);
+  const lastTapPosRef = useRef({ x: 0, y: 0 });
+  const panActiveRef = useRef(false);
+  const panLastRef = useRef({ x: 0, y: 0 });
+  const pinchRef = useRef({ active: false, startDist: 0, startScale: 1, cx: 0, cy: 0, startTx: 0, startTy: 0 });
+
+  const zoomAnimRef = useRef(0);
+
+  const applyZoom = useCallback(() => {
+    const el = imageWrapperRef.current;
+    if (!el) return;
+    const { scale, tx, ty } = zoomRef.current;
+    el.style.transform = scale <= 1.01
+      ? ''
+      : `translate(${tx}px, ${ty}px) scale(${scale})`;
+    el.style.transformOrigin = '0 0';
+  }, []);
+
+  const clampPan = useCallback(() => {
+    const el = imageWrapperRef.current;
+    if (!el) return;
+    const { scale } = zoomRef.current;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    zoomRef.current.tx = Math.min(0, Math.max(w * (1 - scale), zoomRef.current.tx));
+    zoomRef.current.ty = Math.min(0, Math.max(h * (1 - scale), zoomRef.current.ty));
+  }, []);
+
+  const animateZoomTo = useCallback((targetScale: number, targetTx: number, targetTy: number, onDone?: () => void) => {
+    if (zoomAnimRef.current) cancelAnimationFrame(zoomAnimRef.current);
+
+    const from = { ...zoomRef.current };
+    const duration = 280;
+    const start = performance.now();
+
+    function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3); }
+
+    function tick(now: number) {
+      const elapsed = now - start;
+      const t = Math.min(1, elapsed / duration);
+      const e = easeOutCubic(t);
+
+      zoomRef.current.scale = from.scale + (targetScale - from.scale) * e;
+      zoomRef.current.tx = from.tx + (targetTx - from.tx) * e;
+      zoomRef.current.ty = from.ty + (targetTy - from.ty) * e;
+      applyZoom();
+
+      if (t < 1) {
+        zoomAnimRef.current = requestAnimationFrame(tick);
+      } else {
+        zoomAnimRef.current = 0;
+        onDone?.();
+      }
+    }
+
+    zoomAnimRef.current = requestAnimationFrame(tick);
+  }, [applyZoom]);
+
+  const resetZoom = useCallback(() => {
+    animateZoomTo(1, 0, 0, () => setIsZoomed(false));
+  }, [animateZoomTo]);
+
+  const handleImagePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (blurActive) return;
+
+    const now = Date.now();
+    const dx = e.clientX - lastTapPosRef.current.x;
+    const dy = e.clientY - lastTapPosRef.current.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Double-tap detection (< 300ms, < 30px apart)
+    if (now - lastTapTimeRef.current < 300 && dist < 30) {
+      if (peekTimerRef.current) {
+        clearTimeout(peekTimerRef.current);
+        peekTimerRef.current = null;
+      }
+      lastTapTimeRef.current = 0;
+
+      if (zoomRef.current.scale > 1.01) {
+        resetZoom();
+      } else {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        const newScale = 2.5;
+        const targetTx = cx * (1 - newScale);
+        const targetTy = cy * (1 - newScale);
+        setIsZoomed(true);
+        animateZoomTo(newScale, targetTx, targetTy);
+      }
+      return;
+    }
+
+    lastTapTimeRef.current = now;
+    lastTapPosRef.current = { x: e.clientX, y: e.clientY };
+
+    // If zoomed, start pan instead of peek
+    if (zoomRef.current.scale > 1.01) {
+      panActiveRef.current = true;
+      panLastRef.current = { x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    // Normal long-press peek
     peekTimerRef.current = setTimeout(() => {
       const handle = canvasHandle.current;
       if (!handle?.renderer || !sourceImg) return;
@@ -349,10 +499,23 @@ export default function EditScreen() {
       handle.renderer.setIntensity(1.0);
       handle.renderer.uploadImage(sourceImg);
       handle.renderer.render();
-    }, 300);
-  }, [sourceImg]);
+    }, 400);
+  }, [sourceImg, blurActive, resetZoom, clampPan, applyZoom, animateZoomTo]);
 
-  const handlePeekUp = useCallback(() => {
+  const handleImagePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!panActiveRef.current) return;
+    const dx = e.clientX - panLastRef.current.x;
+    const dy = e.clientY - panLastRef.current.y;
+    panLastRef.current = { x: e.clientX, y: e.clientY };
+    zoomRef.current.tx += dx;
+    zoomRef.current.ty += dy;
+    clampPan();
+    applyZoom();
+  }, [clampPan, applyZoom]);
+
+  const handleImagePointerUp = useCallback(() => {
+    panActiveRef.current = false;
+
     if (peekTimerRef.current) {
       clearTimeout(peekTimerRef.current);
       peekTimerRef.current = null;
@@ -375,70 +538,156 @@ export default function EditScreen() {
     handle.renderer.render();
   }, [sourceImg, history, historyIndex, filterStrength]);
 
+  // ── Pinch-to-zoom via touch events ──────────────────────────────
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (blurActive) return;
+    if (e.touches.length === 2) {
+      if (peekTimerRef.current) {
+        clearTimeout(peekTimerRef.current);
+        peekTimerRef.current = null;
+      }
+      const t0 = e.touches[0], t1 = e.touches[1];
+      const dist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      pinchRef.current = {
+        active: true,
+        startDist: dist,
+        startScale: zoomRef.current.scale,
+        cx: ((t0.clientX + t1.clientX) / 2) - rect.left,
+        cy: ((t0.clientY + t1.clientY) / 2) - rect.top,
+        startTx: zoomRef.current.tx,
+        startTy: zoomRef.current.ty,
+      };
+    }
+  }, [blurActive]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!pinchRef.current.active || e.touches.length < 2) return;
+    e.preventDefault();
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const dist = Math.hypot(t0.clientX - t1.clientX, t0.clientY - t1.clientY);
+    const ratio = dist / pinchRef.current.startDist;
+    const newScale = Math.min(6, Math.max(1, pinchRef.current.startScale * ratio));
+    const { cx, cy, startTx, startTy, startScale } = pinchRef.current;
+
+    zoomRef.current.scale = newScale;
+    zoomRef.current.tx = cx - (cx - startTx) * (newScale / startScale);
+    zoomRef.current.ty = cy - (cy - startTy) * (newScale / startScale);
+    clampPan();
+    applyZoom();
+    setIsZoomed(newScale > 1.01);
+  }, [clampPan, applyZoom]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      pinchRef.current.active = false;
+      if (zoomRef.current.scale <= 1.01) {
+        resetZoom();
+      }
+    }
+  }, [resetZoom]);
+
   return (
     <ScreenShell>
       <ScreenHeader
         left={
-          <button onClick={() => navigate(-1)} className="text-base tracking-widest text-accent/80">
-            Back
+          <button onClick={() => navigate(-1)} className="p-1 text-accent/80">
+            <X size={22} weight="bold" />
           </button>
         }
         center={
-          <div className="flex items-center gap-2">
-            {history.length > 1 ? (
-              <>
-                <button
-                  onClick={handleUndo}
-                  disabled={!canUndo}
-                  className={`p-1 transition-opacity ${canUndo ? 'text-accent' : 'text-accent/30'}`}
-                >
-                  <ArrowUUpLeft size={20} weight="bold" />
-                </button>
-                <button
-                  onClick={handleDeleteImage}
-                  className="p-1 text-accent"
-                >
-                  <Trash size={20} weight="bold" />
-                </button>
-                <button
-                  onClick={handleRedo}
-                  disabled={!canRedo}
-                  className={`p-1 transition-opacity ${canRedo ? 'text-accent' : 'text-accent/30'}`}
-                >
-                  <ArrowUUpRight size={20} weight="bold" />
-                </button>
-              </>
-            ) : (
+          history.length > 1 ? (
+            <div className="flex items-center gap-2">
               <button
-                onClick={handleDeleteImage}
-                className="p-1 text-accent"
+                onClick={handleUndo}
+                disabled={!canUndo}
+                className={`p-1 transition-opacity ${canUndo ? 'text-accent' : 'text-accent/30'}`}
               >
-                <Trash size={20} weight="bold" />
+                <ArrowUUpLeft size={20} weight="bold" />
               </button>
-            )}
-          </div>
+              <button
+                onClick={handleRedo}
+                disabled={!canRedo}
+                className={`p-1 transition-opacity ${canRedo ? 'text-accent' : 'text-accent/30'}`}
+              >
+                <ArrowUUpRight size={20} weight="bold" />
+              </button>
+            </div>
+          ) : undefined
         }
         right={
-          <button onClick={handleSave} className="text-base tracking-widest text-accent font-medium">
-            Save
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowMenu((v) => !v)}
+              className="p-1 text-accent"
+            >
+              <DotsThreeOutlineVertical size={22} weight="fill" />
+            </button>
+
+            {showMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 top-full mt-2 z-50 w-48 bg-surface-lighter rounded-xl shadow-xl border border-white/10 py-1 animate-panel-fade">
+                  <button
+                    onClick={handleSaveToApp}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
+                  >
+                    <FloppyDisk size={18} weight="bold" />
+                    Save
+                  </button>
+                  <button
+                    onClick={handleDownload}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
+                  >
+                    <DownloadSimple size={18} weight="bold" />
+                    Download
+                  </button>
+                  {folders.length > 0 && (
+                    <button
+                      onClick={() => { setShowMenu(false); setShowFolderPicker(true); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
+                    >
+                      <FolderOpen size={18} weight="bold" />
+                      Move to Album
+                    </button>
+                  )}
+                  <div className="mx-3 border-t border-white/8" />
+                  <button
+                    onClick={() => { setShowMenu(false); handleDeleteImage(); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/5 transition-colors"
+                  >
+                    <Trash size={18} weight="bold" />
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         }
       />
 
       <div ref={containerRef} className="flex-1 flex items-center justify-center px-4 overflow-hidden relative">
         <div
-          className="relative"
-          onPointerDown={handlePeekDown}
-          onPointerUp={handlePeekUp}
-          onPointerCancel={handlePeekUp}
-          onPointerLeave={handlePeekUp}
+          className="relative overflow-hidden"
+          style={{ touchAction: isZoomed ? 'none' : 'auto' }}
+          onPointerDown={handleImagePointerDown}
+          onPointerMove={handleImagePointerMove}
+          onPointerUp={handleImagePointerUp}
+          onPointerCancel={handleImagePointerUp}
+          onPointerLeave={handleImagePointerUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <WebGLCanvas ref={canvasHandle} />
-          {blurActive && (
+          <div ref={imageWrapperRef}>
+            <WebGLCanvas ref={canvasHandle} />
+          </div>
+          {blurActive && !isZoomed && (
             <div
               className="absolute inset-0"
               onPointerDown={(e) => {
+                e.stopPropagation();
                 const rect = (e.target as HTMLElement).getBoundingClientRect();
                 const nx = (e.clientX - rect.left) / rect.width;
                 const ny = (e.clientY - rect.top) / rect.height;
@@ -607,8 +856,40 @@ export default function EditScreen() {
       <SaveModal
         open={showSaveModal}
         onClose={() => setShowSaveModal(false)}
-        onSave={handleConfirmSave}
+        onSave={handleConfirmDownload}
       />
+
+      {showFolderPicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center animate-panel-fade"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowFolderPicker(false); }}
+        >
+          <div className="w-full max-w-md bg-surface rounded-t-2xl px-5 pt-6 pb-8 animate-panel-slide-up">
+            <h3 className="text-sm font-medium tracking-wider text-accent mb-5 text-center uppercase">
+              Move to Album
+            </h3>
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {folders.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => handleMoveToFolder(f)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm text-accent hover:bg-white/5 transition-colors"
+                >
+                  <FolderOpen size={18} weight="bold" className="text-amber-400/70" />
+                  {f.name}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowFolderPicker(false)}
+              className="w-full mt-4 py-3 rounded-xl bg-surface-lighter text-accent/60 text-sm font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </ScreenShell>
   );
 }

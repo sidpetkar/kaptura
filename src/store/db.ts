@@ -23,3 +23,9 @@ export const settingsStore = localforage.createInstance({
   storeName: 'settings',
   description: 'App settings and preferences',
 });
+
+export const folderStore = localforage.createInstance({
+  name: 'kaptura',
+  storeName: 'folders',
+  description: 'Photo folders',
+});

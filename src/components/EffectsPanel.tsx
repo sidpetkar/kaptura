@@ -46,6 +46,7 @@ export default function EffectsPanel({ activeEffects, onChange, onEditingChange 
     onChange(next);
     if (editingEffect === effectId) {
       setEditingEffect(null);
+      onEditingChange?.(false);
     }
   }
 

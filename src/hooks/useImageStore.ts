@@ -5,10 +5,11 @@ interface ImageMeta {
   id: string;
   timestamp: number;
   lutId?: string;
+  folderId?: string;
 }
 
 export function useImageStore() {
-  const [images, setImages] = useState<{ id: string; thumbnailUrl: string; timestamp: number }[]>([]);
+  const [images, setImages] = useState<{ id: string; thumbnailUrl: string; timestamp: number; folderId?: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -22,7 +23,7 @@ export function useImageStore() {
       metas.map(async (m) => {
         const thumbBlob = await thumbnailStore.getItem<Blob>(m.id);
         const thumbnailUrl = thumbBlob ? URL.createObjectURL(thumbBlob) : '';
-        return { id: m.id, thumbnailUrl, timestamp: m.timestamp };
+        return { id: m.id, thumbnailUrl, timestamp: m.timestamp, folderId: m.folderId };
       }),
     );
 
@@ -65,7 +66,7 @@ export function useImageStore() {
   );
 
   const importImages = useCallback(
-    async (blobs: Blob[]): Promise<string[]> => {
+    async (blobs: Blob[], folderId?: string): Promise<string[]> => {
       const ids: string[] = [];
       for (let i = 0; i < blobs.length; i++) {
         const id = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -73,7 +74,7 @@ export function useImageStore() {
         const thumbBlob = await createThumbnail(blobs[i], 400);
         await imageStore.setItem(id, blobs[i]);
         await thumbnailStore.setItem(id, thumbBlob);
-        await metaStore.setItem(id, { id, timestamp } as ImageMeta);
+        await metaStore.setItem(id, { id, timestamp, folderId } as ImageMeta);
         ids.push(id);
       }
       await refresh();
