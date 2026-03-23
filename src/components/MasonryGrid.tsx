@@ -156,17 +156,6 @@ export default function MasonryGrid({
     );
   }
 
-  if (images.length === 1) {
-    return (
-      <div className="flex-1 flex flex-col pt-24">
-        {folderTabs}
-        <div className="flex-1 flex items-center justify-center px-12">
-          {renderTile(images[0])}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className="flex-1 overflow-y-auto overflow-x-hidden pt-24 pb-24"
