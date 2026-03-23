@@ -14,7 +14,7 @@ export default function FolderTabs({ active, onChange, lutsReady, prefsKey }: Pr
   if (categories.length <= 1) return null;
 
   return (
-    <div className="flex gap-1 px-3 py-2 overflow-x-auto" style={{ touchAction: 'pan-x' }}>
+    <div className="flex gap-1 px-4 py-2 overflow-x-auto" style={{ touchAction: 'pan-x' }}>
       {categories.map((cat) => {
         const key = cat === 'all' ? 'all presets' : cat;
         const label = cat === 'all' ? 'all presets' : cat;

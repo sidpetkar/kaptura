@@ -132,7 +132,7 @@ export default function AdjustPanel({
       return (
         <div className="animate-panel-fade">
           <div
-            className="px-5 space-y-3 animate-panel-slide-up flex flex-col justify-center"
+            className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
             style={{ minHeight: STRIP_HEIGHT }}
           >
             <div className="flex justify-center gap-4 mb-2">
@@ -176,7 +176,7 @@ export default function AdjustPanel({
             </div>
           </div>
           <div
-            className="flex items-center justify-between px-5 py-4 border-t border-white/5 animate-panel-slide-up"
+            className="flex items-center justify-between px-4 py-4 border-t border-white/5 animate-panel-slide-up"
             style={{ animationDelay: '0.05s' }}
           >
             <button onClick={cancelEdit} className="text-accent/80 p-1">
@@ -196,7 +196,7 @@ export default function AdjustPanel({
     return (
       <div className="animate-panel-fade">
         <div
-          className="px-5 space-y-3 animate-panel-slide-up flex flex-col justify-center"
+          className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
           style={{ minHeight: STRIP_HEIGHT }}
         >
           {editingDef.params.map((p) => (
@@ -220,7 +220,7 @@ export default function AdjustPanel({
           ))}
         </div>
         <div
-          className="flex items-center justify-between px-5 py-4 border-t border-white/5 animate-panel-slide-up"
+          className="flex items-center justify-between px-4 py-4 border-t border-white/5 animate-panel-slide-up"
           style={{ animationDelay: '0.05s' }}
         >
           <button onClick={cancelEdit} className="text-accent/80 p-1">

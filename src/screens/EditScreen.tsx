@@ -730,7 +730,7 @@ export default function EditScreen() {
         {strengthMode ? (
           <div key="strength" className="animate-panel-fade">
             <div
-              className="flex items-center px-5 gap-4 animate-panel-slide-up"
+              className="flex items-center px-4 gap-4 animate-panel-slide-up"
               style={{ height: 96 }}
             >
               <span className="text-[12px] text-muted tracking-wider shrink-0 w-10 text-right">
@@ -745,7 +745,7 @@ export default function EditScreen() {
                 className="flex-1 accent-amber-400 h-1"
               />
             </div>
-            <div className="flex items-center justify-between px-5 py-6 border-t border-white/5 animate-panel-slide-up" style={{ animationDelay: '0.05s' }}>
+            <div className="flex items-center justify-between px-4 py-6 border-t border-white/5 animate-panel-slide-up" style={{ animationDelay: '0.05s' }}>
               <button onClick={cancelStrength} className="text-accent/80 p-1">
                 <X size={22} weight="bold" />
               </button>
@@ -770,7 +770,7 @@ export default function EditScreen() {
               lutsReady={lutsReady}
               prefsKey={prefsKey}
             />
-            <div className="flex items-center justify-between px-5 py-4 border-t border-white/5">
+            <div className="flex items-center justify-between px-4 py-4 border-t border-white/5">
               <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
                 Filters
               </button>
@@ -799,7 +799,7 @@ export default function EditScreen() {
               onEditingChange={setEffectsEditing}
             />
             {!effectsEditing && (
-              <div className="flex items-center justify-between px-5 py-4 border-t border-white/5">
+              <div className="flex items-center justify-between px-4 py-4 border-t border-white/5">
                 <button
                   onClick={() => setActivePanel('filters')}
                   className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
@@ -831,7 +831,7 @@ export default function EditScreen() {
               onEditingChange={setAdjustEditing}
             />
             {!adjustEditing && (
-              <div className="flex items-center justify-between px-5 py-4 border-t border-white/5">
+              <div className="flex items-center justify-between px-4 py-4 border-t border-white/5">
                 <button
                   onClick={() => setActivePanel('filters')}
                   className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
