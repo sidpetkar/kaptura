@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import {
@@ -13,15 +14,18 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
+import { syncFromCloud, uploadAllLocalToCloud } from '../services/cloudSync';
 
 const ADMIN_EMAIL = 'siddhantpetkar@gmail.com';
 const GUEST_KEY = 'kaptura_guest';
+const SYNCED_KEY = 'kaptura_cloud_synced';
 
 interface AuthState {
   user: User | null;
   isGuest: boolean;
   isAdmin: boolean;
   loading: boolean;
+  syncing: boolean;
   signInWithGoogle: () => Promise<void>;
   skip: () => void;
   signOut: () => Promise<void>;
@@ -33,6 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isGuest, setIsGuest] = useState(() => localStorage.getItem(GUEST_KEY) === '1');
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const syncedRef = useRef(false);
 
   useEffect(() => {
     if (!auth) {
@@ -51,6 +57,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
+  useEffect(() => {
+    if (!user || syncedRef.current) return;
+    syncedRef.current = true;
+
+    async function doSync() {
+      setSyncing(true);
+      try {
+        const hasSyncedBefore = localStorage.getItem(`${SYNCED_KEY}_${user!.uid}`);
+
+        if (!hasSyncedBefore) {
+          await uploadAllLocalToCloud(user!.uid);
+          localStorage.setItem(`${SYNCED_KEY}_${user!.uid}`, '1');
+        }
+
+        const count = await syncFromCloud(user!.uid);
+        if (count > 0) {
+          window.dispatchEvent(new Event('kaptura-cloud-sync'));
+        }
+      } catch (err) {
+        console.error('Cloud sync error:', err);
+      } finally {
+        setSyncing(false);
+      }
+    }
+
+    doSync();
+  }, [user]);
+
   const signInWithGoogle = useCallback(async () => {
     if (!auth) {
       console.warn('Firebase auth not initialized');
@@ -67,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     if (auth) await fbSignOut(auth);
     setUser(null);
+    syncedRef.current = false;
     localStorage.removeItem(GUEST_KEY);
     setIsGuest(false);
   }, []);
@@ -75,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isGuest, isAdmin, loading, signInWithGoogle, skip, signOut }}
+      value={{ user, isGuest, isAdmin, loading, syncing, signInWithGoogle, skip, signOut }}
     >
       {children}
     </AuthContext.Provider>

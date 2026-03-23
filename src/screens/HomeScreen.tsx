@@ -34,6 +34,12 @@ export default function HomeScreen() {
 
   useEffect(() => { initLUTs(); }, []);
 
+  useEffect(() => {
+    const handler = () => refreshImages();
+    window.addEventListener('kaptura-cloud-sync', handler);
+    return () => window.removeEventListener('kaptura-cloud-sync', handler);
+  }, [refreshImages]);
+
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
@@ -216,7 +222,7 @@ export default function HomeScreen() {
           className={`absolute top-0 inset-x-0 z-10 fade-down pointer-events-none transition-transform ease-out ${
             !selectMode && barsHidden ? '-translate-y-full duration-500' : 'translate-y-0 duration-300'
           }`}
-          style={{ height: 140 }}
+          style={{ height: 'calc(env(safe-area-inset-top, 0px) + 140px)' }}
         >
           <div className="pointer-events-auto">
             {selectMode ? (

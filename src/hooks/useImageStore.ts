@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { imageStore, thumbnailStore, metaStore } from '../store/db';
+import { uploadImageToCloud, deleteImageFromCloud } from '../services/cloudSync';
+import { auth } from '../lib/firebase';
 
 interface ImageMeta {
   id: string;
   timestamp: number;
   lutId?: string;
   folderId?: string;
+}
+
+function getUid(): string | null {
+  return auth?.currentUser?.uid ?? null;
 }
 
 export function useImageStore() {
@@ -45,6 +51,11 @@ export function useImageStore() {
       await thumbnailStore.setItem(id, thumbBlob);
       await metaStore.setItem(id, { id, timestamp, lutId } as ImageMeta);
 
+      const uid = getUid();
+      if (uid) {
+        uploadImageToCloud(uid, id, blob, thumbBlob, { timestamp, lutId }).catch(() => {});
+      }
+
       await refresh();
       return id;
     },
@@ -60,6 +71,12 @@ export function useImageStore() {
       await imageStore.removeItem(id);
       await thumbnailStore.removeItem(id);
       await metaStore.removeItem(id);
+
+      const uid = getUid();
+      if (uid) {
+        deleteImageFromCloud(uid, id).catch(() => {});
+      }
+
       await refresh();
     },
     [refresh],
@@ -68,6 +85,8 @@ export function useImageStore() {
   const importImages = useCallback(
     async (blobs: Blob[], folderId?: string): Promise<string[]> => {
       const ids: string[] = [];
+      const uid = getUid();
+
       for (let i = 0; i < blobs.length; i++) {
         const id = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         const timestamp = Date.now() - (blobs.length - 1 - i);
@@ -75,6 +94,11 @@ export function useImageStore() {
         await imageStore.setItem(id, blobs[i]);
         await thumbnailStore.setItem(id, thumbBlob);
         await metaStore.setItem(id, { id, timestamp, folderId } as ImageMeta);
+
+        if (uid) {
+          uploadImageToCloud(uid, id, blobs[i], thumbBlob, { timestamp, folderId }).catch(() => {});
+        }
+
         ids.push(id);
       }
       await refresh();

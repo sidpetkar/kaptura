@@ -145,7 +145,7 @@ export default function MasonryGrid({
 
   if (images.length === 0) {
     return (
-      <div className="flex-1 flex flex-col pt-24">
+      <div className="flex-1 flex flex-col" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6rem)' }}>
         {folderTabs}
         <div className="flex-1 flex items-center justify-center opacity-30">
           <p className="text-xs tracking-widest text-muted text-center px-10">
@@ -158,8 +158,8 @@ export default function MasonryGrid({
 
   return (
     <div
-      className="flex-1 overflow-y-auto overflow-x-hidden pt-24 pb-24"
-      style={{ touchAction: 'pan-y' }}
+      className="flex-1 overflow-y-auto overflow-x-hidden pb-24"
+      style={{ touchAction: 'pan-y', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6rem)' }}
       onScroll={onScroll}
     >
       {folderTabs && (
