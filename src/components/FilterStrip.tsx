@@ -1,5 +1,8 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { getAllLUTs, getLUTsByCategory, loadLUT, generateThumbnail } from '../engine/lutManager';
+import {
+  getAllLUTs, getLUTsByCategory, loadLUT,
+  generateThumbnail, getThumbLUT, isThumbBundleReady,
+} from '../engine/lutManager';
 import type { LUTMeta, ParsedLUT } from '../types';
 
 interface Props {
@@ -16,6 +19,7 @@ interface Props {
 const MAX_VISIBLE = 50;
 const THUMB_SIZE = 76;
 const DOUBLE_TAP_MS = 350;
+const BATCH_SIZE = 6;
 
 const thumbCache = new Map<string, string>();
 
@@ -74,24 +78,51 @@ export default function FilterStrip({ activeTab, activeLutId, onSelect, onClear,
     if (pending.length === 0) return;
 
     let cancelled = false;
+    const useBundledThumbs = isThumbBundleReady();
 
-    async function gen() {
+    async function genBatch() {
       const batch = new Map(cached);
-      for (const lut of pending) {
+
+      for (let i = 0; i < pending.length; i += BATCH_SIZE) {
         if (cancelled || genIdRef.current !== id) break;
-        try {
-          const parsed = await loadLUT(lut);
-          const dataUrl = await generateThumbnail(sourceImage!, parsed, THUMB_SIZE);
-          thumbCache.set(lut.id, dataUrl);
-          batch.set(lut.id, dataUrl);
-          if (!cancelled && genIdRef.current === id) setThumbnails(new Map(batch));
-        } catch {
-          // skip failed LUT
+
+        const chunk = pending.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+          chunk.map(async (lut) => {
+            let parsed: ParsedLUT;
+
+            if (useBundledThumbs) {
+              const thumbLut = getThumbLUT(lut);
+              if (thumbLut) {
+                parsed = thumbLut;
+              } else {
+                parsed = await loadLUT(lut);
+              }
+            } else {
+              parsed = await loadLUT(lut);
+            }
+
+            return {
+              id: lut.id,
+              dataUrl: await generateThumbnail(sourceImage!, parsed, THUMB_SIZE),
+            };
+          }),
+        );
+
+        for (const r of results) {
+          if (r.status === 'fulfilled') {
+            thumbCache.set(r.value.id, r.value.dataUrl);
+            batch.set(r.value.id, r.value.dataUrl);
+          }
+        }
+
+        if (!cancelled && genIdRef.current === id) {
+          setThumbnails(new Map(batch));
         }
       }
     }
 
-    gen();
+    genBatch();
     return () => { cancelled = true; };
   }, [sourceImage, luts]);
 

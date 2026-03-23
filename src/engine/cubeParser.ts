@@ -1,5 +1,17 @@
 import type { ParsedLUT } from '../types';
 
+/**
+ * Parse a compact binary LUT.
+ * Format: [4 bytes uint32 LE grid size] + [size^3 * 3 float32 LE RGB values]
+ */
+export function parseBinary(buffer: ArrayBuffer): ParsedLUT {
+  const view = new DataView(buffer);
+  const size = view.getUint32(0, true);
+  const expected = size * size * size * 3;
+  const data = new Float32Array(buffer, 4, expected);
+  return { size, data };
+}
+
 export function parseCube(raw: string): ParsedLUT {
   const lines = raw.split(/\r?\n/);
   let size = 0;

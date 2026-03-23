@@ -1,4 +1,5 @@
-import { parseCube } from './cubeParser';
+import localforage from 'localforage';
+import { parseCube, parseBinary } from './cubeParser';
 import { WebGLRenderer } from './webgl';
 import { getDisabledCategories } from '../hooks/useCategoryPrefs';
 import type { ParsedLUT, LUTMeta } from '../types';
@@ -18,6 +19,13 @@ const SKIP_FOLDERS = new Set([
 
 let thumbRenderer: WebGLRenderer | null = null;
 let thumbCanvas: HTMLCanvasElement | null = null;
+
+const THUMB_LUT_SIZE = 17;
+const THUMB_ENTRY_BYTES = THUMB_LUT_SIZE ** 3 * 3 * 4;
+let thumbBundleBuffer: ArrayBuffer | null = null;
+let thumbBundlePromise: Promise<void> | null = null;
+
+// ── Public getters ──────────────────────────────────────────────────
 
 export function getAllLUTs(): LUTMeta[] {
   const disabled = getDisabledCategories();
@@ -48,18 +56,98 @@ export function getCategoryLutCount(category: string): number {
   return (categoryIndex.get(category) ?? []).length;
 }
 
+// ── Thumb bundle ────────────────────────────────────────────────────
+
+export function getThumbLUT(meta: LUTMeta): ParsedLUT | null {
+  if (meta.thumbIndex == null || meta.thumbIndex < 0 || !thumbBundleBuffer) return null;
+  const offset = meta.thumbIndex * THUMB_ENTRY_BYTES;
+  if (offset + THUMB_ENTRY_BYTES > thumbBundleBuffer.byteLength) return null;
+  const data = new Float32Array(thumbBundleBuffer, offset, THUMB_LUT_SIZE ** 3 * 3);
+  return { size: THUMB_LUT_SIZE, data };
+}
+
+export function isThumbBundleReady(): boolean {
+  return thumbBundleBuffer !== null;
+}
+
+async function loadThumbBundle() {
+  try {
+    const url = LUT_BASE
+      ? `${LUT_BASE}/luts/thumb-bundle.bin`
+      : '/luts/thumb-bundle.bin';
+    const resp = await fetch(url);
+    if (!resp.ok) return;
+    thumbBundleBuffer = await resp.arrayBuffer();
+  } catch {
+    // thumb bundle not available; thumbnails will load individually
+  }
+}
+
+// ── Full LUT loading ────────────────────────────────────────────────
+
 export async function loadLUT(meta: LUTMeta): Promise<ParsedLUT> {
   const cached = parsedCache.get(meta.id);
   if (cached) return cached;
 
+  // Try IndexedDB cache first
+  try {
+    const dbCached = await idbGet(meta.id);
+    if (dbCached) {
+      parsedCache.set(meta.id, dbCached);
+      return dbCached;
+    }
+  } catch { /* IndexedDB unavailable */ }
+
+  // Try binary .bin file first
+  if (meta.binPath) {
+    try {
+      const binUrl = LUT_BASE ? `${LUT_BASE}${meta.binPath}` : meta.binPath;
+      const resp = await fetch(binUrl);
+      if (resp.ok) {
+        const buf = await resp.arrayBuffer();
+        const parsed = parseBinary(buf);
+        parsedCache.set(meta.id, parsed);
+        idbPut(meta.id, parsed).catch(() => {});
+        return parsed;
+      }
+    } catch { /* fallback to .cube */ }
+  }
+
+  // Fallback to .cube text
   const url = LUT_BASE ? `${LUT_BASE}${meta.path}` : meta.path;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to load LUT: ${url}`);
   const text = await response.text();
   const parsed = parseCube(text);
   parsedCache.set(meta.id, parsed);
+  idbPut(meta.id, parsed).catch(() => {});
   return parsed;
 }
+
+// ── IndexedDB persistence via localforage ───────────────────────────
+
+const lutStore = localforage.createInstance({ name: 'kaptura', storeName: 'lut_cache' });
+
+async function idbGet(id: string): Promise<ParsedLUT | null> {
+  try {
+    const entry = await lutStore.getItem<{ size: number; data: ArrayBuffer }>(id);
+    if (!entry) return null;
+    return { size: entry.size, data: new Float32Array(entry.data) };
+  } catch {
+    return null;
+  }
+}
+
+async function idbPut(id: string, lut: ParsedLUT): Promise<void> {
+  try {
+    await lutStore.setItem(id, {
+      size: lut.size,
+      data: lut.data.buffer.slice(lut.data.byteOffset, lut.data.byteOffset + lut.data.byteLength),
+    });
+  } catch { /* quota or permission error */ }
+}
+
+// ── Init ────────────────────────────────────────────────────────────
 
 export function initLUTs(): Promise<void> {
   if (initialized) return Promise.resolve();
@@ -68,17 +156,33 @@ export function initLUTs(): Promise<void> {
   return initPromise;
 }
 
+interface ManifestEntry {
+  path: string;
+  binPath?: string | null;
+  thumbIndex?: number;
+}
+
 async function doInit() {
   try {
     const manifestUrl = LUT_BASE ? `${LUT_BASE}/luts/manifest.json` : '/luts/manifest.json';
     const resp = await fetch(manifestUrl);
     if (!resp.ok) { initialized = true; return; }
-    const paths: string[] = await resp.json();
+    const raw = await resp.json();
+
+    // Support both old (string[]) and new (ManifestEntry[]) manifest formats
+    const entries: ManifestEntry[] = typeof raw[0] === 'string'
+      ? (raw as string[]).map((p: string) => ({ path: p }))
+      : raw as ManifestEntry[];
+
+    const hasThumbBundle = entries.some(e => e.thumbIndex != null && e.thumbIndex >= 0);
+    if (hasThumbBundle && !thumbBundlePromise) {
+      thumbBundlePromise = loadThumbBundle();
+    }
 
     const seenIds = new Set<string>();
 
-    for (const encodedPath of paths) {
-      const decodedPath = decodeURIComponent(encodedPath);
+    for (const entry of entries) {
+      const decodedPath = decodeURIComponent(entry.path);
       const segments = decodedPath.replace(/^\/luts\//, '').split('/');
       const filename = segments.pop()!.replace('.cube', '');
       const folders = segments.filter((s) => !SKIP_FOLDERS.has(s.toLowerCase()));
@@ -97,7 +201,15 @@ async function doInit() {
 
       const name = filename;
       const category = extractCategory(folders);
-      const meta: LUTMeta = { id, name, shortCode: '', category, path: encodedPath };
+      const meta: LUTMeta = {
+        id,
+        name,
+        shortCode: '',
+        category,
+        path: entry.path,
+        binPath: entry.binPath ?? null,
+        thumbIndex: entry.thumbIndex ?? -1,
+      };
 
       LUT_REGISTRY.push(meta);
 
@@ -110,11 +222,15 @@ async function doInit() {
     }
 
     assignShortCodes();
+
+    if (thumbBundlePromise) await thumbBundlePromise;
   } catch {
     // manifest not found
   }
   initialized = true;
 }
+
+// ── Short codes ─────────────────────────────────────────────────────
 
 function buildCategoryCodes(): Map<string, string> {
   const categories = Array.from(categoryIndex.keys());
@@ -175,6 +291,8 @@ function assignShortCodes() {
   }
 }
 
+// ── Category extraction ─────────────────────────────────────────────
+
 function extractCategory(folders: string[]): string {
   if (folders.length === 0) return 'uncategorized';
 
@@ -190,6 +308,8 @@ function extractCategory(folders: string[]): string {
     .trim()
     .toLowerCase() || 'uncategorized';
 }
+
+// ── Thumbnail generation ────────────────────────────────────────────
 
 function getThumbRenderer(): WebGLRenderer | null {
   if (thumbRenderer) return thumbRenderer;

@@ -9,6 +9,8 @@ export interface LUTMeta {
   shortCode: string;
   category: LUTCategory;
   path: string;
+  binPath?: string | null;
+  thumbIndex?: number;
 }
 
 export type LUTCategory = string;

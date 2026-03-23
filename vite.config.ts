@@ -27,9 +27,21 @@ function lutManifestPlugin(): Plugin {
     if (!fs.existsSync(lutsDir)) {
       fs.mkdirSync(lutsDir, { recursive: true });
     }
+
+    // If build-lut-binaries.mjs already generated a binary manifest, don't overwrite
+    const outPath = path.join(lutsDir, 'manifest.json');
+    const bundlePath = path.join(lutsDir, 'thumb-bundle.bin');
+    if (fs.existsSync(bundlePath) && fs.existsSync(outPath)) {
+      try {
+        const existing = JSON.parse(fs.readFileSync(outPath, 'utf-8'));
+        if (Array.isArray(existing) && existing.length > 0 && typeof existing[0] === 'object') {
+          return existing.length;
+        }
+      } catch { /* regenerate */ }
+    }
+
     const files = scanLuts(lutsDir, publicDir);
     const manifest = JSON.stringify(files);
-    const outPath = path.join(lutsDir, 'manifest.json');
     fs.writeFileSync(outPath, manifest, 'utf-8');
     return files.length;
   }
@@ -77,6 +89,38 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,woff2,png,svg}'],
         navigateFallback: '/index.html',
         runtimeCaching: [
+          {
+            urlPattern: /\/luts\/thumb-bundle\.bin$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'lut-thumb-bundle',
+              expiration: { maxEntries: 2 },
+            },
+          },
+          {
+            urlPattern: /\/luts\/bin\/.*\.bin$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'lut-bin-cache',
+              expiration: { maxEntries: 500 },
+            },
+          },
+          {
+            urlPattern: /r2\.dev\/luts\/bin\/.*\.bin$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'lut-bin-cache-r2',
+              expiration: { maxEntries: 500 },
+            },
+          },
+          {
+            urlPattern: /r2\.dev\/luts\/thumb-bundle\.bin$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'lut-thumb-bundle-r2',
+              expiration: { maxEntries: 2 },
+            },
+          },
           {
             urlPattern: /\/luts\/.*\.cube$/,
             handler: 'CacheFirst',

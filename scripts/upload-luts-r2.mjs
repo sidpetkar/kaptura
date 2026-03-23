@@ -1,6 +1,13 @@
 /**
- * Upload all .cube files from public/luts/ to Cloudflare R2 bucket.
- * Also uploads the manifest.json.
+ * Upload LUT assets to Cloudflare R2 bucket.
+ *
+ * Uploads:
+ *   - .cube files (original text LUTs, for backward compat)
+ *   - .bin files  (33^3 binary LUTs from build-lut-binaries.mjs)
+ *   - thumb-bundle.bin (all LUTs at 17^3 for instant thumbnails)
+ *   - manifest.json
+ *
+ * Run build-lut-binaries.mjs FIRST to generate the binary files.
  *
  * Usage:  node scripts/upload-luts-r2.mjs
  *
@@ -19,6 +26,7 @@ const LUTS_DIR = path.resolve(__dirname, '..', 'public', 'luts');
 
 function walk(dir) {
   const results = [];
+  if (!fs.existsSync(dir)) return results;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
@@ -31,28 +39,40 @@ function walk(dir) {
 }
 
 const allFiles = walk(LUTS_DIR);
-const cubeFiles = allFiles.filter((f) => f.endsWith('.cube'));
-
-console.log(`Found ${cubeFiles.length} .cube files to upload\n`);
-
-// Generate manifest.json with R2-relative paths
-const manifestPaths = cubeFiles.map((f) => {
-  const rel = path.relative(path.resolve(LUTS_DIR, '..'), f).replace(/\\/g, '/');
-  return '/' + rel.split('/').map((seg) => encodeURIComponent(seg)).join('/');
-});
+const cubeFiles = allFiles.filter((f) => f.endsWith('.cube') && !path.basename(f).startsWith('._'));
+const binFiles = allFiles.filter((f) => f.endsWith('.bin'));
 const manifestPath = path.join(LUTS_DIR, 'manifest.json');
-fs.writeFileSync(manifestPath, JSON.stringify(manifestPaths), 'utf-8');
-console.log(`Generated manifest.json with ${manifestPaths.length} entries\n`);
 
-// Upload each file
-const filesToUpload = [...cubeFiles, manifestPath];
+console.log(`Found ${cubeFiles.length} .cube files`);
+console.log(`Found ${binFiles.length} .bin files`);
+console.log();
+
+if (binFiles.length === 0) {
+  console.log('No .bin files found! Run build-lut-binaries.mjs first.\n');
+  console.log('  node scripts/build-lut-binaries.mjs');
+  console.log('  node scripts/upload-luts-r2.mjs\n');
+  process.exit(1);
+}
+
+function getContentType(filePath) {
+  if (filePath.endsWith('.json')) return 'application/json';
+  if (filePath.endsWith('.bin')) return 'application/octet-stream';
+  return 'text/plain';
+}
+
+const filesToUpload = [
+  ...binFiles,
+  manifestPath,
+  ...cubeFiles,
+];
+
 let uploaded = 0;
 let failed = 0;
 
 for (const filePath of filesToUpload) {
   const rel = path.relative(path.resolve(LUTS_DIR, '..'), filePath).replace(/\\/g, '/');
   const objectKey = rel;
-  const ct = filePath.endsWith('.json') ? 'application/json' : 'text/plain';
+  const ct = getContentType(filePath);
 
   try {
     execSync(
@@ -68,4 +88,5 @@ for (const filePath of filesToUpload) {
 }
 
 console.log(`\n\nDone! ${uploaded} uploaded, ${failed} failed.`);
-console.log(`\nFiles are at: https://<your-r2-public-url>/luts/manifest.json`);
+console.log(`\nBinary LUTs + thumb-bundle uploaded alongside .cube files.`);
+console.log(`Set VITE_LUT_BASE_URL to your R2 public URL in .env for production.`);
