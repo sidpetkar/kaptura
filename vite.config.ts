@@ -71,7 +71,7 @@ export default defineConfig({
     lutManifestPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['fonts/**/*'],
+      includeAssets: ['fonts/**/*', 'kaptura-logo.png', 'apple-touch-icon.png', 'favicon-32.png'],
       manifest: {
         name: 'KAPTURA',
         short_name: 'KAPTURA',
@@ -81,8 +81,9 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/kaptura-logo.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
