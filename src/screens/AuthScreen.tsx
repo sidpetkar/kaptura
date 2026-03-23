@@ -42,7 +42,7 @@ export default function AuthScreen() {
         {/* Collage image — flex-1 takes available space */}
         <div className="relative w-full flex-1 min-h-0">
           <img
-            src="/kaptura-collage.png"
+            src="/solaire-collage.png"
             alt=""
             className="absolute inset-0 w-full h-full object-cover object-left-top"
             draggable={false}

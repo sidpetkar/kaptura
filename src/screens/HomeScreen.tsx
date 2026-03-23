@@ -36,8 +36,8 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const handler = () => refreshImages();
-    window.addEventListener('kaptura-cloud-sync', handler);
-    return () => window.removeEventListener('kaptura-cloud-sync', handler);
+    window.addEventListener('solaire-cloud-sync', handler);
+    return () => window.removeEventListener('solaire-cloud-sync', handler);
   }, [refreshImages]);
 
   const handleFileSelect = useCallback(

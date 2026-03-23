@@ -121,7 +121,7 @@ export default function CameraScreen() {
     try {
       const blob = await handle.renderer.toBlob();
       const id = await saveImage(blob, activeLutId ?? undefined);
-      const filename = `KAPTURA_${id}.jpg`;
+      const filename = `SOLAIRE_${id}.jpg`;
 
       if (doWatermark) {
         const wmBlob = await applyWatermark(blob);

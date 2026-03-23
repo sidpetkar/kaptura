@@ -1,4 +1,4 @@
-# KAPTURA — Developer Commands Cheat Sheet
+# SOLAIRE — Developer Commands Cheat Sheet
 
 ## Everyday Development
 
@@ -89,7 +89,7 @@ npm install -D package-name
 ## Project Architecture (Quick Reference)
 
 ```
-kaptura-pwa/
+solaire-pwa/
 ├── public/luts/          ← Your LUT .cube files (local only, NOT in git)
 ├── scripts/              ← Upload script for R2
 ├── src/
@@ -122,7 +122,7 @@ kaptura-pwa/
 |---|---|---|
 | App code | **Vercel** | [vercel.com/dashboard](https://vercel.com/dashboard) |
 | LUT files | **Cloudflare R2** | [dash.cloudflare.com](https://dash.cloudflare.com) → R2 |
-| Source code | **GitHub** | [github.com/sidpetkar/kaptura](https://github.com/sidpetkar/kaptura) |
+| Source code | **GitHub** | [github.com/sidpetkar/solaire](https://github.com/sidpetkar/solaire) |
 
 ---
 

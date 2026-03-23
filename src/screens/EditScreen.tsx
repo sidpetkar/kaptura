@@ -304,7 +304,7 @@ export default function EditScreen() {
       if (sourceImg) handle.renderer.uploadImage(sourceImg);
       const blob = await handle.renderer.toBlob();
       const id = await saveImage(blob, activeLutId ?? undefined, existingId);
-      const filename = `KAPTURA_${id}.jpg`;
+      const filename = `SOLAIRE_${id}.jpg`;
 
       if (withWatermark && doWatermark) {
         const wmBlob = await applyWatermark(blob);

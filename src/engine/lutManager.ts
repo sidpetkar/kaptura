@@ -126,7 +126,7 @@ export async function loadLUT(meta: LUTMeta): Promise<ParsedLUT> {
 
 // ── IndexedDB persistence via localforage ───────────────────────────
 
-const lutStore = localforage.createInstance({ name: 'kaptura', storeName: 'lut_cache' });
+const lutStore = localforage.createInstance({ name: 'solaire', storeName: 'lut_cache' });
 
 async function idbGet(id: string): Promise<ParsedLUT | null> {
   try {

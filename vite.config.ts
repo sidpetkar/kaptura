@@ -71,10 +71,10 @@ export default defineConfig({
     lutManifestPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['fonts/**/*', 'kaptura-logo.png', 'apple-touch-icon.png', 'favicon-32.png'],
+      includeAssets: ['fonts/**/*', 'solaire-logo.png', 'apple-touch-icon.png', 'favicon-32.png'],
       manifest: {
-        name: 'KAPTURA',
-        short_name: 'KAPTURA',
+        name: 'Solaire',
+        short_name: 'Solaire',
         description: 'LUT-based photo editor & camera',
         theme_color: '#212421',
         background_color: '#212421',
@@ -83,7 +83,7 @@ export default defineConfig({
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/kaptura-logo.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/solaire-logo.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

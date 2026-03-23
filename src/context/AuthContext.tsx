@@ -17,8 +17,8 @@ import { auth, googleProvider } from '../lib/firebase';
 import { syncFromCloud, uploadAllLocalToCloud } from '../services/cloudSync';
 
 const ADMIN_EMAIL = 'siddhantpetkar@gmail.com';
-const GUEST_KEY = 'kaptura_guest';
-const SYNCED_KEY = 'kaptura_cloud_synced';
+const GUEST_KEY = 'solaire_guest';
+const SYNCED_KEY = 'solaire_cloud_synced';
 
 interface AuthState {
   user: User | null;
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const count = await syncFromCloud(user!.uid);
         if (count > 0) {
-          window.dispatchEvent(new Event('kaptura-cloud-sync'));
+          window.dispatchEvent(new Event('solaire-cloud-sync'));
         }
       } catch (err) {
         console.error('Cloud sync error:', err);

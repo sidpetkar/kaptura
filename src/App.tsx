@@ -12,7 +12,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="h-full w-full bg-surface flex items-center justify-center">
-        <span className="text-xs text-muted tracking-widest animate-pulse">KAPTURA</span>
+        <span className="text-xs text-muted tracking-widest animate-pulse">SOLAIRE</span>
       </div>
     );
   }
