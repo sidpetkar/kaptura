@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #212421;
+  --color-surface-light: #2a2d2a;
+  --color-surface-lighter: #363936;
+  --color-accent: #e5e5e5;
+  --color-muted: #8a8a8a;
+  --font-sans: 'Satoshi', system-ui, -apple-system, sans-serif;
+  --animate-screen-in: screen-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fade-down {
+  background: linear-gradient(
+    to bottom,
+    #212421 0%,
+    rgba(33, 36, 33, 0.95) 30%,
+    rgba(33, 36, 33, 0.7) 50%,
+    rgba(33, 36, 33, 0.35) 70%,
+    rgba(33, 36, 33, 0.1) 85%,
+    transparent 100%
+  ) !important;
+}
+
+.fade-up {
+  background: linear-gradient(
+    to top,
+    #212421 0%,
+    rgba(33, 36, 33, 0.95) 25%,
+    rgba(33, 36, 33, 0.7) 45%,
+    rgba(33, 36, 33, 0.35) 65%,
+    rgba(33, 36, 33, 0.1) 80%,
+    transparent 100%
+  ) !important;
+}
+
+*,
+*::before,
+*::after {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font-family: var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+input[type="file"] {
+  display: none;
+}
+
+@keyframes panel-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes panel-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-panel-fade {
+  animation: panel-fade-in 0.25s ease-out both;
+}
+
+.animate-panel-slide-up {
+  animation: panel-slide-up 0.3s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
