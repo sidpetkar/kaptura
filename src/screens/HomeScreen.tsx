@@ -10,6 +10,7 @@ import FolderContextMenu from '../components/FolderContextMenu';
 import { useImageStore } from '../hooks/useImageStore';
 import { useFolderStore } from '../hooks/useFolderStore';
 import { initLUTs } from '../engine/lutManager';
+import { SettingsDrawer } from './SettingsScreen';
 
 const SCROLL_HIDE_THRESHOLD = 10;
 
@@ -31,6 +32,7 @@ export default function HomeScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const selectMode = selectedIds.size > 0;
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => { initLUTs(); }, []);
 
@@ -247,7 +249,13 @@ export default function HomeScreen() {
               <ScreenHeader
                 left={<h1 className="text-lg font-medium tracking-wider normal-case">Welcome Sid,</h1>}
                 right={
-                  <button onClick={() => navigate('/settings')} className="text-accent p-1">
+                  <button
+                    onClick={() => {
+                      if (window.innerWidth >= 768) setShowSettings(true);
+                      else navigate('/settings');
+                    }}
+                    className="text-accent p-1"
+                  >
                     <GearSix size={22} weight="fill" />
                   </button>
                 }
@@ -287,6 +295,10 @@ export default function HomeScreen() {
           />
         )}
       </div>
+
+      {showSettings && (
+        <SettingsDrawer onClose={() => setShowSettings(false)} />
+      )}
     </ScreenShell>
   );
 }

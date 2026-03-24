@@ -102,20 +102,12 @@ export default function EffectsPanel({ activeEffects, onChange, onEditingChange 
           className="flex items-center justify-between px-4 py-5 border-t border-white/5 animate-panel-slide-up"
           style={{ animationDelay: '0.05s' }}
         >
-          <button onClick={cancelEdit} className="text-accent/80 p-1">
+          <button onClick={() => handleToggleOff(editingEffect)} className="text-accent/80 p-1">
             <X size={22} weight="bold" />
           </button>
-          <div className="flex items-center gap-3">
-            <span className="text-[12px] tracking-widest text-amber-400 font-medium">
-              {editingDef.label}
-            </span>
-            <button
-              onClick={() => handleToggleOff(editingEffect)}
-              className="text-[10px] tracking-wider text-red-400/80 border border-red-400/30 rounded px-2 py-0.5"
-            >
-              OFF
-            </button>
-          </div>
+          <span className="text-[12px] tracking-widest text-amber-400 font-medium">
+            {editingDef.label}
+          </span>
           <button onClick={confirmEdit} className="text-accent p-1">
             <Check size={22} weight="bold" />
           </button>

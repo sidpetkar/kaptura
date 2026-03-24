@@ -130,7 +130,7 @@ export default function AdjustPanel({
   if (editingDef && editingTool) {
     if (editingDef.type === 'blur') {
       return (
-        <div className="animate-panel-fade">
+        <div className="animate-panel-fade max-w-[600px] mx-auto w-full">
           <div
             className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
             style={{ minHeight: STRIP_HEIGHT }}
@@ -194,7 +194,7 @@ export default function AdjustPanel({
     }
 
     return (
-      <div className="animate-panel-fade">
+      <div className="animate-panel-fade max-w-[600px] mx-auto w-full">
         <div
           className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
           style={{ minHeight: STRIP_HEIGHT }}
@@ -240,7 +240,7 @@ export default function AdjustPanel({
   // Tool strip (horizontal, separated by dividers)
   return (
     <div className="animate-panel-fade">
-      <div className="flex px-1 overflow-x-auto items-center" style={{ height: STRIP_HEIGHT, touchAction: 'pan-x' }}>
+      <div className="flex px-1 overflow-x-auto md:justify-center items-center" style={{ height: STRIP_HEIGHT, touchAction: 'pan-x' }}>
         {ADJUST_TOOLS.map((tool, i) => {
           const active = isToolActive(tool.id);
           return (

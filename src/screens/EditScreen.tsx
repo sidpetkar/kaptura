@@ -630,53 +630,74 @@ export default function EditScreen() {
           ) : undefined
         }
         right={
-          <div className="relative">
-            <button
-              onClick={() => setShowMenu((v) => !v)}
-              className="p-1 text-accent"
-            >
-              <DotsThreeOutlineVertical size={22} weight="fill" />
-            </button>
+          <>
+            {/* Desktop: inline action buttons */}
+            <div className="hidden md:flex items-center gap-1">
+              <button onClick={handleSaveToApp} className="p-2 text-accent/80 hover:text-accent transition-colors" title="Save">
+                <FloppyDisk size={20} weight="bold" />
+              </button>
+              <button onClick={handleDownload} className="p-2 text-accent/80 hover:text-accent transition-colors" title="Download">
+                <DownloadSimple size={20} weight="bold" />
+              </button>
+              {folders.length > 0 && (
+                <button onClick={() => setShowFolderPicker(true)} className="p-2 text-accent/80 hover:text-accent transition-colors" title="Move to Album">
+                  <FolderOpen size={20} weight="bold" />
+                </button>
+              )}
+              <button onClick={handleDeleteImage} className="p-2 text-red-400/70 hover:text-red-400 transition-colors" title="Delete">
+                <Trash size={20} weight="bold" />
+              </button>
+            </div>
 
-            {showMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                <div className="absolute right-0 top-full mt-2 z-50 w-48 bg-surface-lighter rounded-xl shadow-xl border border-white/10 py-1 animate-panel-fade">
-                  <button
-                    onClick={handleSaveToApp}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
-                  >
-                    <FloppyDisk size={18} weight="bold" />
-                    Save
-                  </button>
-                  <button
-                    onClick={handleDownload}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
-                  >
-                    <DownloadSimple size={18} weight="bold" />
-                    Download
-                  </button>
-                  {folders.length > 0 && (
+            {/* Mobile: 3-dot dropdown */}
+            <div className="relative md:hidden">
+              <button
+                onClick={() => setShowMenu((v) => !v)}
+                className="p-1 text-accent"
+              >
+                <DotsThreeOutlineVertical size={22} weight="fill" />
+              </button>
+
+              {showMenu && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                  <div className="absolute right-0 top-full mt-2 z-50 w-48 bg-surface-lighter rounded-xl shadow-xl border border-white/10 py-1 animate-panel-fade">
                     <button
-                      onClick={() => { setShowMenu(false); setShowFolderPicker(true); }}
+                      onClick={handleSaveToApp}
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
                     >
-                      <FolderOpen size={18} weight="bold" />
-                      Move to Album
+                      <FloppyDisk size={18} weight="bold" />
+                      Save
                     </button>
-                  )}
-                  <div className="mx-3 border-t border-white/8" />
-                  <button
-                    onClick={() => { setShowMenu(false); handleDeleteImage(); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/5 transition-colors"
-                  >
-                    <Trash size={18} weight="bold" />
-                    Delete
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                    <button
+                      onClick={handleDownload}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
+                    >
+                      <DownloadSimple size={18} weight="bold" />
+                      Download
+                    </button>
+                    {folders.length > 0 && (
+                      <button
+                        onClick={() => { setShowMenu(false); setShowFolderPicker(true); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-accent hover:bg-white/5 transition-colors"
+                      >
+                        <FolderOpen size={18} weight="bold" />
+                        Move to Album
+                      </button>
+                    )}
+                    <div className="mx-3 border-t border-white/8" />
+                    <button
+                      onClick={() => { setShowMenu(false); handleDeleteImage(); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-white/5 transition-colors"
+                    >
+                      <Trash size={18} weight="bold" />
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
         }
       />
 
@@ -742,7 +763,7 @@ export default function EditScreen() {
 
       <div className="shrink-0 bg-surface border-t border-white/5">
         {strengthMode ? (
-          <div key="strength" className="animate-panel-fade">
+          <div key="strength" className="animate-panel-fade max-w-[600px] mx-auto w-full">
             <div
               className="flex items-center px-4 gap-4 animate-panel-slide-up"
               style={{ height: 96 }}
@@ -784,43 +805,15 @@ export default function EditScreen() {
               lutsReady={lutsReady}
               prefsKey={prefsKey}
             />
-            <div className="flex items-center justify-between px-4 py-4 border-t border-white/5">
-              <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
-                Filters
-              </button>
-              <button
-                onClick={() => setActivePanel('effects')}
-                className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
-              >
-                FXs
-              </button>
-              <button
-                onClick={() => setActivePanel('adjust')}
-                className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
-              >
-                Adjust
-              </button>
-            </div>
-          </div>
-        ) : activePanel === 'effects' ? (
-          <div key="effects" className="animate-panel-fade">
-            <EffectsPanel
-              activeEffects={effectParams}
-              onChange={(params) => {
-                handleEffectsChange(params);
-                commitEffects(params);
-              }}
-              onEditingChange={setEffectsEditing}
-            />
-            {!effectsEditing && (
-              <div className="flex items-center justify-between px-4 py-4 border-t border-white/5">
-                <button
-                  onClick={() => setActivePanel('filters')}
-                  className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
-                >
+            <div className="border-t border-white/5">
+              <div className="flex items-center justify-center gap-8 px-4 py-4 max-w-[600px] mx-auto">
+                <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
                   Filters
                 </button>
-                <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
+                <button
+                  onClick={() => setActivePanel('effects')}
+                  className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                >
                   FXs
                 </button>
                 <button
@@ -829,6 +822,40 @@ export default function EditScreen() {
                 >
                   Adjust
                 </button>
+              </div>
+            </div>
+          </div>
+        ) : activePanel === 'effects' ? (
+          <div key="effects" className="animate-panel-fade">
+            <div className="max-w-[600px] mx-auto w-full">
+              <EffectsPanel
+                activeEffects={effectParams}
+                onChange={(params) => {
+                  handleEffectsChange(params);
+                  commitEffects(params);
+                }}
+                onEditingChange={setEffectsEditing}
+              />
+            </div>
+            {!effectsEditing && (
+              <div className="border-t border-white/5">
+                <div className="flex items-center justify-center gap-8 px-4 py-4 max-w-[600px] mx-auto">
+                  <button
+                    onClick={() => setActivePanel('filters')}
+                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                  >
+                    Filters
+                  </button>
+                  <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
+                    FXs
+                  </button>
+                  <button
+                    onClick={() => setActivePanel('adjust')}
+                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                  >
+                    Adjust
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -845,22 +872,24 @@ export default function EditScreen() {
               onEditingChange={setAdjustEditing}
             />
             {!adjustEditing && (
-              <div className="flex items-center justify-between px-4 py-4 border-t border-white/5">
-                <button
-                  onClick={() => setActivePanel('filters')}
-                  className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
-                >
-                  Filters
-                </button>
-                <button
-                  onClick={() => setActivePanel('effects')}
-                  className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
-                >
-                  FXs
-                </button>
-                <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
-                  Adjust
-                </button>
+              <div className="border-t border-white/5">
+                <div className="flex items-center justify-center gap-8 px-4 py-4 max-w-[600px] mx-auto">
+                  <button
+                    onClick={() => setActivePanel('filters')}
+                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                  >
+                    Filters
+                  </button>
+                  <button
+                    onClick={() => setActivePanel('effects')}
+                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                  >
+                    FXs
+                  </button>
+                  <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
+                    Adjust
+                  </button>
+                </div>
               </div>
             )}
           </div>

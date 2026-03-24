@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo, useState, useEffect } from 'react';
 import { Check } from '@phosphor-icons/react';
 import type { ReactNode } from 'react';
 
@@ -81,15 +81,23 @@ export default function MasonryGrid({
     [clearLongPress, selectMode, onToggleSelect, onDoubleTap],
   );
 
+  const [colCount, setColCount] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth >= 768 ? 8 : 2,
+  );
+
+  useEffect(() => {
+    const update = () => setColCount(window.innerWidth >= 768 ? 8 : 2);
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
   const columns = useMemo(() => {
-    const left: GridImage[] = [];
-    const right: GridImage[] = [];
+    const cols: GridImage[][] = Array.from({ length: colCount }, () => []);
     for (let i = 0; i < images.length; i++) {
-      if (i % 2 === 0) left.push(images[i]);
-      else right.push(images[i]);
+      cols[i % colCount].push(images[i]);
     }
-    return [left, right];
-  }, [images]);
+    return cols;
+  }, [images, colCount]);
 
   const renderTile = useCallback(
     (img: GridImage) => {

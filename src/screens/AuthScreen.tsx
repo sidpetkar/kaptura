@@ -50,26 +50,34 @@ export default function AuthScreen() {
           <div
             className="absolute inset-x-0 bottom-0 pointer-events-none"
             style={{
-              height: '60%',
+              height: '70%',
               background:
-                'linear-gradient(0deg, #212421 0%, #212421e6 25%, #21242199 55%, #21242140 75%, transparent 100%)',
+                'linear-gradient(0deg, #212421 0%, #212421f2 30%, #212421cc 50%, #21242180 70%, #21242140 85%, transparent 100%)',
             }}
           />
 
-          <div className="absolute inset-x-0 bottom-0 px-6 pb-4">
-            <h1 className="text-[28px] leading-[1.1] font-bold text-accent uppercase">
-              Your in browser
+          <div className="absolute inset-x-0 bottom-0 px-4 pb-4">
+            <img
+              src="/logo-solaire.png"
+              alt="Solaire"
+              className="h-9 mb-0.5"
+              draggable={false}
+            />
+            <h1 className="text-[36px] leading-[1.1] font-medium text-accent uppercase" style={{ letterSpacing: '-0.04em' }}>
+              Made for people
               <br />
-              free luts filter
+              who notice
             </h1>
-            <p className="mt-3 text-[13px] leading-relaxed text-accent/60 font-medium max-w-[280px] uppercase">
-              Your in browser free luts filter your in browser free luts filter
+            <p className="mt-0.5 text-[14px] leading-snug text-white font-light uppercase text-right" style={{ letterSpacing: '0.5px' }}>
+              Cinematic color science
+              <br />
+              for your images instantly
             </p>
           </div>
         </div>
 
         {/* Bottom actions */}
-        <div className="shrink-0 px-6 pt-6">
+        <div className="shrink-0 px-4 pt-6">
           <button
             onClick={handleGoogle}
             disabled={busy}
