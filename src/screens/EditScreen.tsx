@@ -3,15 +3,16 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowUUpLeft, ArrowUUpRight, Trash, Check, X,
   DotsThreeOutlineVertical, FloppyDisk, DownloadSimple, FolderOpen,
+  Sparkle,
 } from '@phosphor-icons/react';
 import ScreenShell from '../components/ScreenShell';
 import ScreenHeader from '../components/ScreenHeader';
 import WebGLCanvas, { type WebGLCanvasHandle } from '../components/WebGLCanvas';
 import FolderTabs from '../components/FolderTabs';
 import FilterStrip from '../components/FilterStrip';
-import EffectsPanel from '../components/EffectsPanel';
 import AdjustPanel from '../components/AdjustPanel';
 import CropTool from '../components/CropTool';
+import AIPanel from '../components/AIPanel';
 import SaveModal from '../components/SaveModal';
 import { useImageStore, downloadBlob } from '../hooks/useImageStore';
 import { useFolderStore, type FolderMeta } from '../hooks/useFolderStore';
@@ -27,7 +28,7 @@ import type { EffectParams } from '../engine/effects';
 import { useEditSession, type SerializedHistoryEntry, type EditSession } from '../hooks/useEditSession';
 import { uploadEditState } from '../services/cloudSync';
 
-type EditorPanel = 'filters' | 'effects' | 'adjust';
+type EditorPanel = 'filters' | 'adjust' | 'ai';
 
 interface HistoryEntry {
   lutId: string | null;
@@ -62,7 +63,9 @@ export default function EditScreen() {
   const [cropActive, setCropActive] = useState(false);
   const [blurActive, setBlurActive] = useState(false);
   const [adjustEditing, setAdjustEditing] = useState(false);
-  const [effectsEditing, setEffectsEditing] = useState(false);
+  const [aiEditing, setAiEditing] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const preAiSourceRef = useRef<HTMLImageElement | null>(null);
 
   const [history, setHistory] = useState<HistoryEntry[]>([
     { lutId: null, meta: null, parsed: null, effectParams: {}, adjustParams: {}, blurParams: { ...DEFAULT_BLUR_PARAMS } },
@@ -195,7 +198,8 @@ export default function EditScreen() {
       setAdjustParams(current.adjustParams);
       setBlurParams(current.blurParams);
       setFilterStrength(session.filterStrength);
-      setActivePanel(session.activePanel as EditorPanel);
+      const restoredPanel = session.activePanel === 'effects' ? 'adjust' : session.activePanel;
+      setActivePanel(restoredPanel as EditorPanel);
 
       handle.renderer.setEffects(current.effectParams);
       handle.renderer.setAdjustments(current.adjustParams);
@@ -349,6 +353,80 @@ export default function EditScreen() {
     }
   }, [renderToCanvas]);
 
+  const getCanvasBlob = useCallback(async (): Promise<Blob | null> => {
+    const handle = canvasHandle.current;
+    if (!handle?.renderer || !sourceImg) return null;
+    return handle.renderer.exportBlob(
+      sourceImg, sourceImg.naturalWidth, sourceImg.naturalHeight,
+    );
+  }, [sourceImg]);
+
+  const handleAiPreview = useCallback((blob: Blob) => {
+    if (!preAiSourceRef.current && sourceImg) {
+      preAiSourceRef.current = sourceImg;
+    }
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const handle = canvasHandle.current;
+      if (!handle?.renderer) return;
+      handle.renderer.clearLUT();
+      handle.renderer.setEffects({});
+      handle.renderer.setAdjustments({});
+      handle.renderer.setBlur(null);
+      handle.renderer.setIntensity(1.0);
+      handle.renderer.uploadImage(img);
+      handle.renderer.render();
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }, [sourceImg]);
+
+  const handleAiAccept = useCallback((blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      setSourceImg(img);
+      renderToCanvas(img);
+
+      setActiveLutId(null);
+      setEffectParams({});
+      setAdjustParams({});
+      setBlurParams({ ...DEFAULT_BLUR_PARAMS });
+      setFilterStrength(100);
+
+      setHistory([{
+        lutId: null, meta: null, parsed: null,
+        effectParams: {}, adjustParams: {},
+        blurParams: { ...DEFAULT_BLUR_PARAMS },
+      }]);
+      setHistoryIndex(0);
+
+      preAiSourceRef.current = null;
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  }, [renderToCanvas]);
+
+  const handleAiCancel = useCallback(() => {
+    const original = preAiSourceRef.current;
+    if (original) {
+      const handle = canvasHandle.current;
+      if (handle?.renderer) {
+        const entry = history[historyIndex];
+        handle.renderer.setEffects(entry.effectParams);
+        handle.renderer.setAdjustments(entry.adjustParams);
+        handle.renderer.setBlur(entry.blurParams.amount > 0 ? entry.blurParams : null);
+        handle.renderer.setIntensity(filterStrength / 100);
+        if (entry.parsed) handle.renderer.uploadLUT(entry.parsed);
+        else handle.renderer.clearLUT();
+        handle.renderer.uploadImage(original);
+        handle.renderer.render();
+      }
+      preAiSourceRef.current = null;
+    }
+  }, [history, historyIndex, filterStrength]);
+
   const handleUndo = useCallback(() => {
     if (!canUndo) return;
     const newIndex = historyIndex - 1;
@@ -395,6 +473,7 @@ export default function EditScreen() {
   }, [user, history, historyIndex, filterStrength, activePanel]);
 
   const handleSaveToApp = useCallback(async () => {
+    if (aiEditing || aiLoading) return;
     setShowMenu(false);
     const handle = canvasHandle.current;
     if (!handle?.renderer || !sourceImg) return;
@@ -404,11 +483,10 @@ export default function EditScreen() {
       );
       const id = await saveImage(blob, activeLutId ?? undefined, existingId);
       pushEditStateToCloud(id);
-      navigate('/');
     } catch (err) {
       console.error('Save failed:', err);
     }
-  }, [activeLutId, saveImage, navigate, sourceImg, existingId, pushEditStateToCloud]);
+  }, [activeLutId, saveImage, sourceImg, existingId, pushEditStateToCloud, aiEditing, aiLoading]);
 
   const handleConfirmDownload = useCallback(async (withWatermark: boolean) => {
     setShowSaveModal(false);
@@ -428,20 +506,20 @@ export default function EditScreen() {
       } else {
         downloadBlob(blob, filename);
       }
-      navigate('/');
     } catch (err) {
       console.error('Save failed:', err);
     }
-  }, [activeLutId, saveImage, navigate, sourceImg, existingId, doWatermark, pushEditStateToCloud]);
+  }, [activeLutId, saveImage, sourceImg, existingId, doWatermark, pushEditStateToCloud]);
 
   const handleDownload = useCallback(() => {
+    if (aiEditing || aiLoading) return;
     setShowMenu(false);
     if (!doWatermark) {
       handleConfirmDownload(false);
       return;
     }
     setShowSaveModal(true);
-  }, [doWatermark, handleConfirmDownload]);
+  }, [doWatermark, handleConfirmDownload, aiEditing, aiLoading]);
 
   const handleMoveToFolder = useCallback(async (folder: FolderMeta) => {
     setShowFolderPicker(false);
@@ -849,6 +927,9 @@ export default function EditScreen() {
               />
             </div>
           )}
+          {aiLoading && (
+            <div className="absolute inset-0 bg-black/20 pointer-events-none animate-[pulse_2.5s_ease-in-out_infinite]" />
+          )}
         </div>
         {!loaded && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -915,10 +996,11 @@ export default function EditScreen() {
                   Filters
                 </button>
                 <button
-                  onClick={() => setActivePanel('effects')}
-                  className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                  onClick={() => setActivePanel('ai')}
+                  className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors flex items-center gap-1"
                 >
-                  FXs
+                  <Sparkle size={16} weight="fill" />
+                  AI
                 </button>
                 <button
                   onClick={() => setActivePanel('adjust')}
@@ -929,41 +1011,7 @@ export default function EditScreen() {
               </div>
             </div>
           </div>
-        ) : activePanel === 'effects' ? (
-          <div key="effects" className="animate-panel-fade">
-            <div className="max-w-[600px] mx-auto w-full">
-              <EffectsPanel
-                activeEffects={effectParams}
-                onChange={(params) => {
-                  handleEffectsChange(params);
-                  commitEffects(params);
-                }}
-                onEditingChange={setEffectsEditing}
-              />
-            </div>
-            {!effectsEditing && (
-              <div className="border-t border-white/5">
-                <div className="flex items-center justify-between md:justify-center md:gap-8 px-4 py-4 max-w-[600px] mx-auto">
-                  <button
-                    onClick={() => setActivePanel('filters')}
-                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
-                  >
-                    Filters
-                  </button>
-                  <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
-                    FXs
-                  </button>
-                  <button
-                    onClick={() => setActivePanel('adjust')}
-                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
-                  >
-                    Adjust
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
+        ) : activePanel === 'adjust' ? (
           <div key="adjust" className="animate-panel-fade">
             <AdjustPanel
               adjustParams={adjustParams}
@@ -974,6 +1022,11 @@ export default function EditScreen() {
               onCropOpen={() => setCropActive(true)}
               onBlurActiveChange={setBlurActive}
               onEditingChange={setAdjustEditing}
+              activeEffects={effectParams}
+              onEffectsChange={(params) => {
+                handleEffectsChange(params);
+                commitEffects(params);
+              }}
             />
             {!adjustEditing && (
               <div className="border-t border-white/5">
@@ -985,12 +1038,48 @@ export default function EditScreen() {
                     Filters
                   </button>
                   <button
-                    onClick={() => setActivePanel('effects')}
-                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                    onClick={() => setActivePanel('ai')}
+                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors flex items-center gap-1"
                   >
-                    FXs
+                    <Sparkle size={16} weight="fill" />
+                    AI
                   </button>
                   <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5">
+                    Adjust
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div key="ai" className="animate-panel-fade">
+            <AIPanel
+              getCanvasBlob={getCanvasBlob}
+              imageWidth={sourceImg?.naturalWidth ?? 1024}
+              imageHeight={sourceImg?.naturalHeight ?? 1024}
+              onPreview={handleAiPreview}
+              onAccept={handleAiAccept}
+              onCancel={handleAiCancel}
+              onEditingChange={setAiEditing}
+              onLoadingChange={setAiLoading}
+            />
+            {!aiEditing && (
+              <div className="border-t border-white/5">
+                <div className="flex items-center justify-between md:justify-center md:gap-8 px-4 py-4 max-w-[600px] mx-auto">
+                  <button
+                    onClick={() => setActivePanel('filters')}
+                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                  >
+                    Filters
+                  </button>
+                  <button className="text-base tracking-widest text-amber-400 border-b border-amber-400 pb-0.5 flex items-center gap-1">
+                    <Sparkle size={16} weight="fill" />
+                    AI
+                  </button>
+                  <button
+                    onClick={() => setActivePanel('adjust')}
+                    className="text-base tracking-widest text-muted/60 hover:text-muted transition-colors"
+                  >
                     Adjust
                   </button>
                 </div>
