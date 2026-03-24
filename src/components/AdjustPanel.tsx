@@ -194,57 +194,68 @@ export default function AdjustPanel({
     onEditingChange?.(false);
   }
 
-  // Editing an FX tool: show sliders + confirm/cancel(off)
-  if (editingFxDef && editingFx) {
-    return (
-      <div className="animate-panel-fade max-w-[600px] mx-auto w-full">
-        <div
-          className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
-          style={{ minHeight: STRIP_HEIGHT }}
-        >
-          {editingFxDef.params.map((p) => (
-            <div key={p.key} className="flex items-center gap-3">
-              <span className="text-[11px] text-muted tracking-wider w-16 shrink-0 text-right">
-                {p.label}
-              </span>
-              <input
-                type="range"
-                min={p.min}
-                max={p.max}
-                step={p.step}
-                value={pendingFxValues[p.key] ?? p.default}
-                onChange={(e) => handleFxSliderChange(p.key, Number(e.target.value))}
-                className="flex-1 accent-amber-400 h-1"
-              />
-              <span className="text-[11px] text-muted tracking-wider w-8 shrink-0">
-                {Math.round(pendingFxValues[p.key] ?? p.default)}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div
-          className="flex items-center justify-between px-4 py-4 border-t border-white/5 animate-panel-slide-up"
-          style={{ animationDelay: '0.05s' }}
-        >
-          <button onClick={toggleFxOff} className="text-accent/80 p-1">
-            <X size={22} weight="bold" />
-          </button>
-          <span className="text-[12px] tracking-widest text-amber-400 font-medium uppercase">
-            {editingFxDef.label}
-          </span>
-          <button onClick={confirmFx} className="text-accent p-1">
-            <Check size={22} weight="bold" />
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const allItems = [
+    ...ADJUST_TOOLS.map((tool) => ({
+      id: tool.id,
+      label: tool.label,
+      icon: tool.icon,
+      active: isToolActive(tool.id),
+      type: 'adjust' as const,
+    })),
+    ...EFFECTS.map((fx) => ({
+      id: fx.id,
+      label: fx.label,
+      icon: fxIconMap[fx.id] ?? fx.icon,
+      active: isFxActive(fx.id),
+      type: 'fx' as const,
+    })),
+  ];
 
-  // Editing a tool: show sliders + confirm/cancel
-  if (editingDef && editingTool) {
-    if (editingDef.type === 'blur') {
-      return (
-        <div className="animate-panel-fade max-w-[600px] mx-auto w-full">
+  return (
+    <div className="max-w-[600px] mx-auto w-full">
+      {editingFxDef && editingFx ? (
+        <>
+          <div
+            className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
+            style={{ minHeight: STRIP_HEIGHT }}
+          >
+            {editingFxDef.params.map((p) => (
+              <div key={p.key} className="flex items-center gap-3">
+                <span className="text-[11px] text-muted tracking-wider w-16 shrink-0 text-right">
+                  {p.label}
+                </span>
+                <input
+                  type="range"
+                  min={p.min}
+                  max={p.max}
+                  step={p.step}
+                  value={pendingFxValues[p.key] ?? p.default}
+                  onChange={(e) => handleFxSliderChange(p.key, Number(e.target.value))}
+                  className="flex-1 accent-amber-400 h-1"
+                />
+                <span className="text-[11px] text-muted tracking-wider w-8 shrink-0">
+                  {Math.round(pendingFxValues[p.key] ?? p.default)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div
+            className="flex items-center justify-between px-4 py-4 border-t border-white/5 animate-panel-slide-up"
+            style={{ animationDelay: '0.05s' }}
+          >
+            <button onClick={toggleFxOff} className="text-accent/80 p-1">
+              <X size={22} weight="bold" />
+            </button>
+            <span className="text-[12px] tracking-widest text-amber-400 font-medium uppercase">
+              {editingFxDef.label}
+            </span>
+            <button onClick={confirmFx} className="text-accent p-1">
+              <Check size={22} weight="bold" />
+            </button>
+          </div>
+        </>
+      ) : editingDef && editingTool && editingDef.type === 'blur' ? (
+        <>
           <div
             className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
             style={{ minHeight: STRIP_HEIGHT }}
@@ -303,97 +314,76 @@ export default function AdjustPanel({
               <Check size={22} weight="bold" />
             </button>
           </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="animate-panel-fade max-w-[600px] mx-auto w-full">
+        </>
+      ) : editingDef && editingTool ? (
+        <>
+          <div
+            className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
+            style={{ minHeight: STRIP_HEIGHT }}
+          >
+            {editingDef.params.map((p) => (
+              <div key={p.key} className="flex items-center gap-3">
+                <span className="text-[11px] text-muted tracking-wider w-16 shrink-0 text-right">
+                  {p.label}
+                </span>
+                <input
+                  type="range"
+                  min={p.min}
+                  max={p.max}
+                  step={p.step}
+                  value={pendingParams[p.key] ?? p.default}
+                  onChange={(e) => handleSliderChange(p.key, Number(e.target.value))}
+                  className="flex-1 accent-amber-400 h-1"
+                />
+                <span className="text-[11px] text-muted tracking-wider w-8 shrink-0">
+                  {Math.round(pendingParams[p.key] ?? p.default)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div
+            className="flex items-center justify-between px-4 py-4 border-t border-white/5 animate-panel-slide-up"
+            style={{ animationDelay: '0.05s' }}
+          >
+            <button onClick={cancelEdit} className="text-accent/80 p-1">
+              <X size={22} weight="bold" />
+            </button>
+            <span className="text-[12px] tracking-widest text-amber-400 font-medium uppercase">
+              {editingDef.label}
+            </span>
+            <button onClick={confirmEdit} className="text-accent p-1">
+              <Check size={22} weight="bold" />
+            </button>
+          </div>
+        </>
+      ) : (
         <div
-          className="px-4 space-y-3 animate-panel-slide-up flex flex-col justify-center"
-          style={{ minHeight: STRIP_HEIGHT }}
+          className="flex px-1 overflow-x-auto md:justify-center items-center"
+          style={{ height: STRIP_HEIGHT, touchAction: 'pan-x' }}
         >
-          {editingDef.params.map((p) => (
-            <div key={p.key} className="flex items-center gap-3">
-              <span className="text-[11px] text-muted tracking-wider w-16 shrink-0 text-right">
-                {p.label}
+          {allItems.map((item, i) => (
+            <button
+              key={item.id + '-' + item.type}
+              onClick={() => item.type === 'fx' ? openFx(item.id) : openTool(item.id)}
+              className={`shrink-0 flex flex-col items-center justify-center gap-1.5 ${
+                i < allItems.length - 1 ? 'border-r border-white/8' : ''
+              }`}
+              style={{ width: TILE_SIZE, height: 68 }}
+            >
+              <span className={item.active ? 'text-amber-400' : 'text-accent/70'}>
+                {ICON_MAP[item.icon] ?? <Sun size={22} weight="duotone" />}
               </span>
-              <input
-                type="range"
-                min={p.min}
-                max={p.max}
-                step={p.step}
-                value={pendingParams[p.key] ?? p.default}
-                onChange={(e) => handleSliderChange(p.key, Number(e.target.value))}
-                className="flex-1 accent-amber-400 h-1"
-              />
-              <span className="text-[11px] text-muted tracking-wider w-8 shrink-0">
-                {Math.round(pendingParams[p.key] ?? p.default)}
+              <span
+                className={`text-[10px] tracking-wider font-light ${
+                  item.active ? 'text-amber-400' : 'text-accent/70'
+                }`}
+              >
+                {item.label}
               </span>
-            </div>
+            </button>
           ))}
         </div>
-        <div
-          className="flex items-center justify-between px-4 py-4 border-t border-white/5 animate-panel-slide-up"
-          style={{ animationDelay: '0.05s' }}
-        >
-          <button onClick={cancelEdit} className="text-accent/80 p-1">
-            <X size={22} weight="bold" />
-          </button>
-          <span className="text-[12px] tracking-widest text-amber-400 font-medium uppercase">
-            {editingDef.label}
-          </span>
-          <button onClick={confirmEdit} className="text-accent p-1">
-            <Check size={22} weight="bold" />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const allItems = [
-    ...ADJUST_TOOLS.map((tool) => ({
-      id: tool.id,
-      label: tool.label,
-      icon: tool.icon,
-      active: isToolActive(tool.id),
-      type: 'adjust' as const,
-    })),
-    ...EFFECTS.map((fx) => ({
-      id: fx.id,
-      label: fx.label,
-      icon: fxIconMap[fx.id] ?? fx.icon,
-      active: isFxActive(fx.id),
-      type: 'fx' as const,
-    })),
-  ];
-
-  // Tool strip (horizontal, separated by dividers)
-  return (
-    <div className="animate-panel-fade">
-      <div className="flex px-1 overflow-x-auto md:justify-center items-center" style={{ height: STRIP_HEIGHT, touchAction: 'pan-x' }}>
-        {allItems.map((item, i) => (
-          <button
-            key={item.id}
-            onClick={() => item.type === 'fx' ? openFx(item.id) : openTool(item.id)}
-            className={`shrink-0 flex flex-col items-center justify-center gap-1.5 ${
-              i < allItems.length - 1 ? 'border-r border-white/8' : ''
-            }`}
-            style={{ width: TILE_SIZE, height: 68 }}
-          >
-            <span className={item.active ? 'text-amber-400' : 'text-accent/70'}>
-              {ICON_MAP[item.icon] ?? <Sun size={22} weight="duotone" />}
-            </span>
-            <span
-              className={`text-[10px] tracking-wider font-light ${
-                item.active ? 'text-amber-400' : 'text-accent/70'
-              }`}
-            >
-              {item.label}
-            </span>
-          </button>
-        ))}
-      </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowUUpLeft, ArrowUUpRight, Trash, Check, X,
   DotsThreeOutlineVertical, FloppyDisk, DownloadSimple, FolderOpen,
-  Sparkle,
+  Sparkle, PaintBrush,
 } from '@phosphor-icons/react';
 import ScreenShell from '../components/ScreenShell';
 import ScreenHeader from '../components/ScreenHeader';
@@ -13,6 +13,7 @@ import FilterStrip from '../components/FilterStrip';
 import AdjustPanel from '../components/AdjustPanel';
 import CropTool from '../components/CropTool';
 import AIPanel from '../components/AIPanel';
+import MaskCanvas, { type MaskCanvasHandle } from '../components/MaskCanvas';
 import SaveModal from '../components/SaveModal';
 import { useImageStore, downloadBlob } from '../hooks/useImageStore';
 import { useFolderStore, type FolderMeta } from '../hooks/useFolderStore';
@@ -68,6 +69,12 @@ export default function EditScreen() {
   const [aiHint, setAiHint] = useState<string | null>(null);
   const preAiSourceRef = useRef<HTMLImageElement | null>(null);
   const aiBlobUrlRef = useRef<string | null>(null);
+
+  type MaskMode = 'off' | 'drawing' | 'ready';
+  const [maskMode, setMaskMode] = useState<MaskMode>('off');
+  const [maskBlob, setMaskBlob] = useState<Blob | null>(null);
+  const [brushSize, setBrushSize] = useState(30);
+  const maskCanvasRef = useRef<MaskCanvasHandle>(null);
 
   const [history, setHistory] = useState<HistoryEntry[]>([
     { lutId: null, meta: null, parsed: null, effectParams: {}, adjustParams: {}, blurParams: { ...DEFAULT_BLUR_PARAMS } },
@@ -407,6 +414,9 @@ export default function EditScreen() {
       setHistoryIndex(0);
 
       preAiSourceRef.current = null;
+      maskCanvasRef.current?.clear();
+      setMaskBlob(null);
+      setMaskMode('off');
     };
     img.src = url;
   }, [renderToCanvas]);
@@ -428,7 +438,47 @@ export default function EditScreen() {
       }
       preAiSourceRef.current = null;
     }
+    maskCanvasRef.current?.clear();
+    setMaskBlob(null);
+    setMaskMode('off');
   }, [history, historyIndex, filterStrength]);
+
+  const handleAiLoadingChange = useCallback((loading: boolean) => {
+    setAiLoading(loading);
+  }, []);
+
+  const handleMaskStart = useCallback(() => {
+    setMaskMode('drawing');
+  }, []);
+
+  const handleMaskConfirm = useCallback(async () => {
+    const handle = maskCanvasRef.current;
+    if (!handle || !handle.hasStrokes()) {
+      setMaskMode('off');
+      return;
+    }
+    const natW = sourceImg?.naturalWidth ?? 1024;
+    const natH = sourceImg?.naturalHeight ?? 1024;
+    try {
+      const blob = await handle.exportMask(natW, natH);
+      setMaskBlob(blob);
+      setMaskMode('ready');
+    } catch {
+      setMaskMode('off');
+    }
+  }, [sourceImg]);
+
+  const handleMaskCancel = useCallback(() => {
+    maskCanvasRef.current?.clear();
+    setMaskBlob(null);
+    setMaskMode('off');
+  }, []);
+
+  const handleMaskClear = useCallback(() => {
+    maskCanvasRef.current?.clear();
+    setMaskBlob(null);
+    setMaskMode('off');
+  }, []);
 
   const handleUndo = useCallback(() => {
     if (!canUndo) return;
@@ -653,7 +703,7 @@ export default function EditScreen() {
 
   const handleImagePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    if (blurActive) return;
+    if (blurActive || maskMode !== 'off') return;
 
     const now = Date.now();
     const dx = e.clientX - lastTapPosRef.current.x;
@@ -706,7 +756,7 @@ export default function EditScreen() {
       handle.renderer.uploadImage(sourceImg);
       handle.renderer.render();
     }, 400);
-  }, [sourceImg, blurActive, resetZoom, clampPan, applyZoom, animateZoomTo]);
+  }, [sourceImg, blurActive, maskMode, resetZoom, clampPan, applyZoom, animateZoomTo]);
 
   const handleImagePointerMove = useCallback((e: React.PointerEvent) => {
     if (!panActiveRef.current) return;
@@ -746,7 +796,7 @@ export default function EditScreen() {
 
   // ── Pinch-to-zoom via touch events ──────────────────────────────
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (blurActive) return;
+    if (blurActive || maskMode !== 'off') return;
     if (e.touches.length === 2) {
       if (peekTimerRef.current) {
         clearTimeout(peekTimerRef.current);
@@ -765,7 +815,7 @@ export default function EditScreen() {
         startTy: zoomRef.current.ty,
       };
     }
-  }, [blurActive]);
+  }, [blurActive, maskMode]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!pinchRef.current.active || e.touches.length < 2) return;
@@ -802,7 +852,24 @@ export default function EditScreen() {
           </button>
         }
         center={
-          history.length > 1 ? (
+          maskMode === 'drawing' ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => maskCanvasRef.current?.undo()}
+                disabled={!maskCanvasRef.current?.canUndo()}
+                className={`p-1 transition-opacity ${maskCanvasRef.current?.canUndo() ? 'text-accent' : 'text-accent/30'}`}
+              >
+                <ArrowUUpLeft size={20} weight="bold" />
+              </button>
+              <button
+                onClick={() => maskCanvasRef.current?.redo()}
+                disabled={!maskCanvasRef.current?.canRedo()}
+                className={`p-1 transition-opacity ${maskCanvasRef.current?.canRedo() ? 'text-accent' : 'text-accent/30'}`}
+              >
+                <ArrowUUpRight size={20} weight="bold" />
+              </button>
+            </div>
+          ) : history.length > 1 ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={handleUndo}
@@ -823,6 +890,15 @@ export default function EditScreen() {
         }
         right={
           <>
+            {activePanel === 'ai' && !aiEditing && !aiLoading && maskMode === 'off' && (
+              <button
+                onClick={handleMaskStart}
+                className="p-2 text-white hover:text-white transition-colors hidden md:inline-flex"
+                title="Brush mask"
+              >
+                <PaintBrush size={20} weight="bold" />
+              </button>
+            )}
             {/* Desktop: inline action buttons */}
             <div className="hidden md:flex items-center gap-1">
               <button onClick={handleSaveToApp} className="p-2 text-accent/80 hover:text-accent transition-colors" title="Save">
@@ -840,6 +916,16 @@ export default function EditScreen() {
                 <Trash size={20} weight="bold" />
               </button>
             </div>
+
+            {activePanel === 'ai' && !aiEditing && !aiLoading && maskMode === 'off' && (
+              <button
+                onClick={handleMaskStart}
+                className="p-1 text-white hover:text-white transition-colors md:hidden"
+                title="Brush mask"
+              >
+                <PaintBrush size={20} weight="bold" />
+              </button>
+            )}
 
             {/* Mobile: 3-dot dropdown */}
             <div className="relative md:hidden">
@@ -937,7 +1023,16 @@ export default function EditScreen() {
               />
             </div>
           )}
-          {aiLoading && (
+          {maskMode !== 'off' && !aiEditing && (
+            <div className={`absolute inset-0 z-10 ${aiLoading ? 'animate-ai-pulse-overlay' : ''}`}>
+              <MaskCanvas
+                ref={maskCanvasRef}
+                brushSize={brushSize}
+                readonly={maskMode === 'ready' || aiLoading}
+              />
+            </div>
+          )}
+          {aiLoading && maskMode === 'off' && (
             <div className="absolute inset-0 bg-white/15 pointer-events-none animate-ai-pulse-overlay" />
           )}
         </div>
@@ -962,7 +1057,32 @@ export default function EditScreen() {
       )}
 
       <div className="shrink-0 bg-surface border-t border-white/5">
-        {strengthMode ? (
+        {maskMode === 'drawing' ? (
+          <div className="animate-panel-fade max-w-[600px] mx-auto w-full">
+            <div className="flex items-center px-4 gap-3 py-3">
+              <span className="text-[11px] text-muted/50 tracking-wider shrink-0 w-6">{brushSize}</span>
+              <input
+                type="range"
+                min={8}
+                max={80}
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+                className="flex-1 accent-amber-400 h-1"
+              />
+            </div>
+            <div className="flex items-center justify-between px-6 py-4 border-t border-white/5">
+              <button onClick={handleMaskCancel} className="text-accent/80 p-2">
+                <X size={22} weight="bold" />
+              </button>
+              <span className="text-[12px] tracking-widest text-amber-400/80 font-medium">
+                Draw mask area
+              </span>
+              <button onClick={handleMaskConfirm} className="text-accent p-2">
+                <Check size={22} weight="bold" />
+              </button>
+            </div>
+          </div>
+        ) : strengthMode ? (
           <div key="strength" className="animate-panel-fade max-w-[600px] mx-auto w-full">
             <div
               className="flex items-center px-4 gap-4 animate-panel-slide-up"
@@ -1076,8 +1196,10 @@ export default function EditScreen() {
               onAccept={handleAiAccept}
               onCancel={handleAiCancel}
               onEditingChange={setAiEditing}
-              onLoadingChange={setAiLoading}
+              onLoadingChange={handleAiLoadingChange}
               onHintChange={setAiHint}
+              maskBlob={maskBlob}
+              onMaskClear={handleMaskClear}
             />
             {!aiEditing && (
               <div className="border-t border-white/5">

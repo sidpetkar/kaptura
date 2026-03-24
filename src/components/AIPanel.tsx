@@ -15,11 +15,14 @@ interface Props {
   onEditingChange?: (editing: boolean) => void;
   onLoadingChange?: (loading: boolean) => void;
   onHintChange?: (hint: string | null) => void;
+  maskBlob?: Blob | null;
+  onMaskClear?: () => void;
 }
 
 export default function AIPanel({
   getCanvasBlob, imageWidth, imageHeight,
   onPreview, onAccept, onCancel, onEditingChange, onLoadingChange, onHintChange,
+  maskBlob, onMaskClear,
 }: Props) {
   const sessionRef = useRef<AIEditSession>(new AIEditSession());
   const [prompt, setPrompt] = useState('');
@@ -72,6 +75,7 @@ export default function AIPanel({
         refBlobs,
         imageWidth,
         imageHeight,
+        maskBlob ?? undefined,
       );
 
       if (refImages.length > 0) {
@@ -94,24 +98,26 @@ export default function AIPanel({
       onLoadingChange?.(false);
       onHintChange?.(null);
     }
-  }, [prompt, loading, getCanvasBlob, refImages, imageWidth, imageHeight, onPreview, onEditingChange, onLoadingChange, onHintChange]);
+  }, [prompt, loading, getCanvasBlob, refImages, imageWidth, imageHeight, onPreview, onEditingChange, onLoadingChange, onHintChange, maskBlob]);
 
   const handleAccept = useCallback(() => {
     if (!pendingResult) return;
     onAccept(pendingResult);
     setPendingResult(null);
     onEditingChange?.(false);
+    onMaskClear?.();
     sessionRef.current.end();
     sessionRef.current.start();
-  }, [pendingResult, onAccept, onEditingChange]);
+  }, [pendingResult, onAccept, onEditingChange, onMaskClear]);
 
   const handleReject = useCallback(() => {
     setPendingResult(null);
     onCancel();
     onEditingChange?.(false);
+    onMaskClear?.();
     sessionRef.current.end();
     sessionRef.current.start();
-  }, [onCancel, onEditingChange]);
+  }, [onCancel, onEditingChange, onMaskClear]);
 
   const handleAddRef = useCallback(() => {
     fileInputRef.current?.click();

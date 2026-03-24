@@ -189,6 +189,7 @@ export class AIEditSession {
     referenceImageBlobs?: Blob[],
     imageWidth?: number,
     imageHeight?: number,
+    maskBlob?: Blob,
   ): Promise<AIEditResult> {
     const isFirstTurn = this._turnCount === 0;
     const model = isFirstTurn ? selectModel(prompt) : this._model;
@@ -200,7 +201,14 @@ export class AIEditSession {
 
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
 
-    parts.push({ text: prompt });
+    let finalPrompt = prompt;
+    if (maskBlob) {
+      finalPrompt =
+        `I am providing a black-and-white mask image where the WHITE region marks the area to edit. ` +
+        `Apply the following edit ONLY to the white-masked region, keeping the rest of the image unchanged: ${prompt}`;
+    }
+
+    parts.push({ text: finalPrompt });
 
     if (isFirstTurn && sourceImageBlob) {
       const base64 = await blobToBase64(sourceImageBlob);
@@ -208,6 +216,16 @@ export class AIEditSession {
         inlineData: {
           mimeType: getMimeType(sourceImageBlob),
           data: base64,
+        },
+      });
+    }
+
+    if (maskBlob) {
+      const maskBase64 = await blobToBase64(maskBlob);
+      parts.push({
+        inlineData: {
+          mimeType: 'image/png',
+          data: maskBase64,
         },
       });
     }
