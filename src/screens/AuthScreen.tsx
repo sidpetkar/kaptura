@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const COLLAGES = ['/solaire-collage.png', '/solaire-collage-2.png'];
@@ -125,9 +125,9 @@ export default function AuthScreen() {
             }}
           >
             By signing in, you agree to our{' '}
-            <span className="underline text-muted/80">Terms of Service</span>{' '}
+            <Link to="/terms" className="underline text-muted/80">Terms of Service</Link>{' '}
             and{' '}
-            <span className="underline text-muted/80">Privacy Policy</span>.
+            <Link to="/privacy" className="underline text-muted/80">Privacy Policy</Link>.
           </p>
         </div>
       </div>
