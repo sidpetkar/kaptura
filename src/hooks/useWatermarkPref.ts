@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { settingsStore } from '../store/db';
+import type { Tier } from '../context/SubscriptionContext';
 
 const STORAGE_KEY = 'watermark_disabled';
 const ADMIN_EMAIL = 'siddhantpetkar@gmail.com';
@@ -46,7 +47,9 @@ export function canRemoveWatermark(email: string | null | undefined): boolean {
 export function shouldWatermark(
   email: string | null | undefined,
   isGuest: boolean,
+  tier: Tier = 'free',
 ): boolean {
+  if (tier === 'pro') return false;
   if (isGuest) return true;
   if (!canRemoveWatermark(email)) return true;
   return getWatermarkEnabled();

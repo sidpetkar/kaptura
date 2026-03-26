@@ -12,6 +12,7 @@ import { useCamera } from '../hooks/useCamera';
 import { useImageStore, downloadBlob } from '../hooks/useImageStore';
 import { shouldWatermark } from '../hooks/useWatermarkPref';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import { applyWatermark } from '../engine/watermark';
 import { initLUTs } from '../engine/lutManager';
 import { ASPECT_RATIOS } from '../types';
@@ -23,7 +24,8 @@ export default function CameraScreen() {
   const { videoRef, start, stop, switchCamera } = useCamera();
   const { saveImage } = useImageStore();
   const { user, isGuest } = useAuth();
-  const doWatermark = shouldWatermark(user?.email, isGuest);
+  const { tier } = useSubscription();
+  const doWatermark = shouldWatermark(user?.email, isGuest, tier);
 
   const [activeTab, setActiveTab] = useState('all presets');
   const [activeLutId, setActiveLutId] = useState<string | null>(null);

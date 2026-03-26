@@ -5,15 +5,26 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSave: (withWatermark: boolean) => void;
+  onUpgrade: () => void;
+  isProUser: boolean;
 }
 
-export default function SaveModal({ open, onClose, onSave }: Props) {
+export default function SaveModal({ open, onClose, onSave, onUpgrade, isProUser }: Props) {
   const handleBackdrop = useCallback(
     (e: React.MouseEvent) => {
       if (e.target === e.currentTarget) onClose();
     },
     [onClose],
   );
+
+  const handleRemoveWatermark = useCallback(() => {
+    if (isProUser) {
+      onSave(false);
+    } else {
+      onClose();
+      onUpgrade();
+    }
+  }, [isProUser, onSave, onClose, onUpgrade]);
 
   if (!open) return null;
 
@@ -37,12 +48,14 @@ export default function SaveModal({ open, onClose, onSave }: Props) {
             Download with watermark
           </button>
           <button
-            onClick={() => onSave(false)}
+            onClick={handleRemoveWatermark}
             className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-surface-lighter text-accent/70 font-medium text-sm tracking-wide"
           >
             <Crown size={18} weight="fill" className="text-amber-400/60" />
             Remove watermark
-            <span className="text-[10px] tracking-wider text-muted ml-1 uppercase">Premium</span>
+            {!isProUser && (
+              <span className="text-[10px] tracking-wider text-muted ml-1 uppercase">Upgrade</span>
+            )}
           </button>
         </div>
       </div>
@@ -70,12 +83,14 @@ export default function SaveModal({ open, onClose, onSave }: Props) {
             Download with watermark
           </button>
           <button
-            onClick={() => onSave(false)}
+            onClick={handleRemoveWatermark}
             className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl bg-surface-lighter text-accent/70 font-medium text-sm tracking-wide"
           >
             <Crown size={18} weight="fill" className="text-amber-400/60" />
             Remove watermark
-            <span className="text-[10px] tracking-wider text-muted ml-1 uppercase">Premium</span>
+            {!isProUser && (
+              <span className="text-[10px] tracking-wider text-muted ml-1 uppercase">Upgrade</span>
+            )}
           </button>
         </div>
       </div>

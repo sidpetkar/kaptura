@@ -3,18 +3,22 @@ import { ArrowLeft, SignOut, Crown, X as XIcon } from '@phosphor-icons/react';
 import { useNavigate } from 'react-router-dom';
 import ScreenShell from '../components/ScreenShell';
 import ScreenHeader from '../components/ScreenHeader';
+import PricingModal from '../components/PricingModal';
 import { initLUTs, getAllCategoryNames, getCategoryLutCount } from '../engine/lutManager';
 import { useCategoryPrefs } from '../hooks/useCategoryPrefs';
 import { useWatermarkPref, canRemoveWatermark } from '../hooks/useWatermarkPref';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
 
 function SettingsBody() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
+  const { tier, isProUser, status, planType, currentPeriodEnd, loading: subLoading } = useSubscription();
   const [lutsReady, setLutsReady] = useState(false);
   const { disabledCategories, toggleCategory, loaded } = useCategoryPrefs();
   const { watermarkEnabled, toggleWatermark } = useWatermarkPref();
   const showWatermarkToggle = canRemoveWatermark(user?.email);
+  const [showPricing, setShowPricing] = useState(false);
 
   useEffect(() => {
     initLUTs().then(() => setLutsReady(true));
@@ -66,26 +70,57 @@ function SettingsBody() {
         )}
       </section>
 
-      {/* Remove Ads — signed-in only */}
+      {/* Subscription — signed-in only */}
       {user && (
         <section className="mb-6">
           <h2 className="text-[13px] tracking-widest text-muted mb-4">Subscription</h2>
-          <div className="flex items-center justify-between py-3 px-1 border-b border-white/5">
-            <div className="flex flex-col items-start gap-0.5">
-              <span className="text-[13px] tracking-wider font-medium text-accent flex items-center gap-2">
-                <Crown size={16} weight="fill" className="text-amber-400/60" />
-                Remove Ads
-              </span>
+          {subLoading ? (
+            <p className="text-[11px] text-muted tracking-wider animate-pulse px-1">Loading...</p>
+          ) : isProUser ? (
+            <div className="py-3 px-1 border-b border-white/5">
+              <div className="flex items-center gap-2 mb-1">
+                <Crown size={16} weight="fill" className="text-amber-400" />
+                <span className="text-[13px] tracking-wider font-medium text-accent">
+                  Solaire Pro
+                </span>
+                <span className="text-[9px] tracking-wider bg-amber-400/20 text-amber-400 px-2 py-0.5 rounded-full uppercase font-bold">
+                  {planType === 'annual' ? 'Annual' : 'Monthly'}
+                </span>
+              </div>
               <span className="text-[10px] tracking-wider text-muted">
-                Coming soon
+                {status === 'cancelled' ? 'Cancels' : 'Renews'}{' '}
+                {currentPeriodEnd
+                  ? new Date(currentPeriodEnd).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : '—'}
               </span>
             </div>
-            <div className="w-10 h-[22px] rounded-full relative bg-surface-lighter">
-              <div className="absolute top-[3px] translate-x-[3px] w-4 h-4 rounded-full bg-white/40 shadow" />
-            </div>
-          </div>
+          ) : (
+            <button
+              onClick={() => setShowPricing(true)}
+              className="w-full flex items-center justify-between py-3 px-1 border-b border-white/5"
+            >
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="text-[13px] tracking-wider font-medium text-accent flex items-center gap-2">
+                  <Crown size={16} weight="fill" className="text-amber-400/60" />
+                  Upgrade to Pro
+                </span>
+                <span className="text-[10px] tracking-wider text-muted">
+                  Remove watermark, all filters & more
+                </span>
+              </div>
+              <span className="text-[11px] tracking-wider text-amber-400 font-medium">
+                From ₹99/mo
+              </span>
+            </button>
+          )}
         </section>
       )}
+
+      <PricingModal open={showPricing} onClose={() => setShowPricing(false)} />
 
       {/* Watermark — admin only */}
       {showWatermarkToggle && (

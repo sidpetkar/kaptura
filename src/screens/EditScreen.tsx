@@ -15,12 +15,14 @@ import CropTool from '../components/CropTool';
 import AIPanel from '../components/AIPanel';
 import MaskCanvas, { type MaskCanvasHandle } from '../components/MaskCanvas';
 import SaveModal from '../components/SaveModal';
+import PricingModal from '../components/PricingModal';
 import { useImageStore, downloadBlob } from '../hooks/useImageStore';
 import { useFolderStore, type FolderMeta } from '../hooks/useFolderStore';
 import { metaStore } from '../store/db';
 import { useCategoryPrefs } from '../hooks/useCategoryPrefs';
 import { shouldWatermark } from '../hooks/useWatermarkPref';
 import { useAuth } from '../context/AuthContext';
+import { useSubscription } from '../context/SubscriptionContext';
 import { applyWatermark } from '../engine/watermark';
 import { initLUTs, getLUTById, loadLUT } from '../engine/lutManager';
 import { DEFAULT_BLUR_PARAMS, type AdjustParams, type BlurParams } from '../engine/adjustments';
@@ -54,7 +56,8 @@ export default function EditScreen() {
   const { disabledCategories } = useCategoryPrefs();
   const prefsKey = disabledCategories.size;
   const { user, isGuest } = useAuth();
-  const doWatermark = shouldWatermark(user?.email, isGuest);
+  const { tier, isProUser } = useSubscription();
+  const doWatermark = shouldWatermark(user?.email, isGuest, tier);
 
   const [activePanel, setActivePanel] = useState<EditorPanel>('filters');
 
@@ -82,6 +85,7 @@ export default function EditScreen() {
   const [historyIndex, setHistoryIndex] = useState(0);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -1231,6 +1235,13 @@ export default function EditScreen() {
         open={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         onSave={handleConfirmDownload}
+        onUpgrade={() => setShowPricing(true)}
+        isProUser={isProUser}
+      />
+
+      <PricingModal
+        open={showPricing}
+        onClose={() => setShowPricing(false)}
       />
 
       {showFolderPicker && (
