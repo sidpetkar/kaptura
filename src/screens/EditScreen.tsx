@@ -99,7 +99,7 @@ export default function EditScreen() {
   const canRedo = historyIndex < history.length - 1;
 
   const activeEntry = history[historyIndex];
-  const activeLutShortCode = activeEntry?.meta?.shortCode ?? '';
+  const activeLutShortCode = activeEntry?.meta?.name ?? '';
 
   const state = location.state as { imageUrl?: string; imageId?: string } | null;
   const existingId = state?.imageId ?? undefined;
@@ -254,7 +254,7 @@ export default function EditScreen() {
     if (!existingId || !sessionRestored.current) return;
     const serialized: SerializedHistoryEntry[] = history.map((e) => ({
       lutId: e.lutId,
-      lutShortCode: e.meta?.shortCode ?? null,
+      lutShortCode: e.meta?.name ?? null,
       effectParams: e.effectParams,
       adjustParams: e.adjustParams,
       blurParams: e.blurParams,
@@ -519,7 +519,7 @@ export default function EditScreen() {
     if (!user) return;
     const serialized: SerializedHistoryEntry[] = history.map((e) => ({
       lutId: e.lutId,
-      lutShortCode: e.meta?.shortCode ?? null,
+      lutShortCode: e.meta?.name ?? null,
       effectParams: e.effectParams,
       adjustParams: e.adjustParams,
       blurParams: e.blurParams,

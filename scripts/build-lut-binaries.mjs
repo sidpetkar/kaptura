@@ -1,10 +1,12 @@
 /**
  * Build-time conversion of .cube text LUTs to compact binary format.
  *
+ * ONLY processes LUTs inside public/luts/Film Luts [ALL]/<Brand>/*.cube
+ *
  * Produces:
  *   public/luts/bin/<encoded-path>.bin   — 33^3 binary LUT (421 KB each)
  *   public/luts/thumb-bundle.bin         — all LUTs at 8^3, concatenated
- *   public/luts/manifest.json            — updated with binPath + thumbOffset
+ *   public/luts/manifest.json            — with binPath, thumbOffset, brand, displayName
  *
  * Binary format per .bin file:
  *   [4 bytes] uint32 LE — grid size (e.g. 33)
@@ -24,6 +26,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.resolve(__dirname, '..', 'public');
 const LUTS_DIR = path.join(PUBLIC_DIR, 'luts');
+const FILM_DIR = path.join(LUTS_DIR, 'Film Luts [ALL]');
 const BIN_DIR = path.join(LUTS_DIR, 'bin');
 const TARGET_SIZE = 33;
 const THUMB_SIZE = 8;
@@ -131,6 +134,7 @@ function writeBin(outputPath, size, data) {
 
 function walk(dir) {
   const results = [];
+  if (!fs.existsSync(dir)) return results;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) results.push(...walk(full));
@@ -139,17 +143,125 @@ function walk(dir) {
   return results;
 }
 
+// ── Display name computation ───────────────────────────────────────
+
+const UPPERCASE_TOKENS = new Set([
+  'fp', 'hp', 'hps', 'bw', 'nc', 'vc', 'uc', 'xp', 'px', 'uv',
+  'hc', 'hg', 'ir', 'gx', 'vs', 'xpro', 'ds', 'ii', 'iii', 'iv',
+]);
+
+const BRAND_PREFIXES = [
+  'kodak', 'fuji', 'ilford', 'polaroid', 'agfa', 'lomography', 'rollei', 'svema',
+  'fuji_xtrans_iii', 'fuji_xtrans_ii', 'fuji_xtrans',
+];
+
+function computeDisplayName(filename, brand) {
+  const stem = filename.replace(/\.cube$/i, '');
+
+  // CineStill: hyphen-separated, e.g. "CineStill-800-T-V1.0--N125"
+  if (brand === 'CineStill') {
+    const stripped = stem.replace(/^CineStill-/i, '');
+    return stripped.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // Svema: space-separated, e.g. "Svema 63s"
+  if (brand === 'Svema') {
+    return stem.replace(/^Svema\s*/i, '').trim();
+  }
+
+  // Standard underscore-separated: strip brand prefix
+  let name = stem;
+
+  // Sort longer prefixes first so "fuji_xtrans_iii" matches before "fuji"
+  const sorted = [...BRAND_PREFIXES].sort((a, b) => b.length - a.length);
+  for (const prefix of sorted) {
+    if (name.toLowerCase().startsWith(prefix + '_')) {
+      name = name.slice(prefix.length + 1);
+      break;
+    }
+  }
+
+  // Detect trailing stop suffixes: sequences of + or - at end, possibly preceded by _
+  let stopSuffix = '';
+  const stopMatch = name.match(/(_?(\++|-+))(_alt)?$/);
+  if (stopMatch) {
+    const plusMinus = stopMatch[2];
+    const altTag = stopMatch[3] || '';
+    if (/^\++$/.test(plusMinus)) {
+      stopSuffix = ` +${plusMinus.length}`;
+    } else if (/^-+$/.test(plusMinus)) {
+      stopSuffix = ` -${plusMinus.length}`;
+    }
+    if (altTag) stopSuffix += ' Alt';
+    name = name.slice(0, stopMatch.index);
+  } else if (name.endsWith('_alt')) {
+    stopSuffix = ' Alt';
+    name = name.slice(0, -4);
+  }
+
+  // Convert underscores to spaces, title-case, preserve abbreviations and hyphenated tokens
+  const words = name.split('_').filter(Boolean);
+  const titled = words.map(word => {
+    // Handle hyphenated compound words like "fp-100c", "tri-x", "t-max", "px-680"
+    if (word.includes('-')) {
+      return word.split('-').map(part => titlePart(part)).join('-');
+    }
+    return titlePart(word);
+  });
+
+  return titled.join(' ').trim() + stopSuffix;
+}
+
+function titlePart(part) {
+  if (!part) return '';
+  const lower = part.toLowerCase();
+
+  if (UPPERCASE_TOKENS.has(lower)) return part.toUpperCase();
+
+  // Preserve mixed alphanumeric like "100c" -> "100C", "3000b" -> "3000B"
+  const numLetterMatch = part.match(/^(\d+)([a-zA-Z])$/);
+  if (numLetterMatch) {
+    return numLetterMatch[1] + numLetterMatch[2].toUpperCase();
+  }
+
+  // Pure numbers stay as-is
+  if (/^\d+$/.test(part)) return part;
+
+  // Normal title case
+  return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+}
+
 // ── Main ───────────────────────────────────────────────────────────
 
-const allFiles = walk(LUTS_DIR).filter(f => f.endsWith('.cube') && !path.basename(f).startsWith('._'));
-console.log(`Found ${allFiles.length} .cube files\n`);
+if (!fs.existsSync(FILM_DIR)) {
+  console.error(`Film LUT source folder not found: ${FILM_DIR}`);
+  process.exit(1);
+}
+
+const brandDirs = fs.readdirSync(FILM_DIR, { withFileTypes: true })
+  .filter(d => d.isDirectory())
+  .map(d => d.name)
+  .sort();
+
+console.log(`Found ${brandDirs.length} brands: ${brandDirs.join(', ')}\n`);
+
+const allFiles = [];
+for (const brand of brandDirs) {
+  const brandPath = path.join(FILM_DIR, brand);
+  const cubes = walk(brandPath).filter(f => f.endsWith('.cube') && !path.basename(f).startsWith('._'));
+  for (const cubeFile of cubes) {
+    allFiles.push({ cubeFile, brand });
+  }
+}
+
+console.log(`Found ${allFiles.length} .cube files total\n`);
 
 const manifestEntries = [];
 const thumbChunks = [];
 let processed = 0;
 let skipped = 0;
 
-for (const cubeFile of allFiles) {
+for (const { cubeFile, brand } of allFiles) {
   const relToCube = path.relative(PUBLIC_DIR, cubeFile).replace(/\\/g, '/');
   const encodedPath = '/' + relToCube.split('/').map(s => encodeURIComponent(s)).join('/');
 
@@ -157,6 +269,9 @@ for (const cubeFile of allFiles) {
   const binFullPath = path.join(BIN_DIR, path.relative('luts', binRelPath));
   const binServePath = '/luts/bin/' + path.relative('luts', binRelPath).replace(/\\/g, '/');
   const encodedBinPath = binServePath.split('/').map(s => encodeURIComponent(s)).join('/');
+
+  const filename = path.basename(cubeFile);
+  const displayName = computeDisplayName(filename, brand);
 
   try {
     const lut = parseCubeFile(cubeFile);
@@ -174,6 +289,8 @@ for (const cubeFile of allFiles) {
       path: encodedPath,
       binPath: encodedBinPath,
       thumbIndex: thumbChunks.length - 1,
+      brand,
+      displayName,
     });
 
     processed++;
@@ -181,7 +298,7 @@ for (const cubeFile of allFiles) {
   } catch (err) {
     skipped++;
     console.error(`\n  SKIP: ${relToCube} — ${err.message}`);
-    manifestEntries.push({ path: encodedPath, binPath: null, thumbIndex: -1 });
+    manifestEntries.push({ path: encodedPath, binPath: null, thumbIndex: -1, brand, displayName });
   }
 }
 
@@ -198,7 +315,19 @@ const manifestPath = path.join(LUTS_DIR, 'manifest.json');
 fs.writeFileSync(manifestPath, JSON.stringify(manifestEntries, null, 0), 'utf-8');
 console.log(`Manifest: ${manifestEntries.length} entries`);
 
+// Preview display names by brand
+console.log('\n── Display name preview ──');
+for (const brand of brandDirs) {
+  const entries = manifestEntries.filter(e => e.brand === brand);
+  console.log(`\n  ${brand} (${entries.length}):`);
+  for (const e of entries.slice(0, 5)) {
+    console.log(`    ${e.displayName}`);
+  }
+  if (entries.length > 5) console.log(`    ... and ${entries.length - 5} more`);
+}
+
 // Summary
-const totalBinSize = walk(BIN_DIR).reduce((s, f) => s + fs.statSync(f).size, 0);
+const binFiles = walk(BIN_DIR).filter(f => f.endsWith('.bin'));
+const totalBinSize = binFiles.reduce((s, f) => s + fs.statSync(f).size, 0);
 console.log(`\nBinary LUTs: ${(totalBinSize / 1024 / 1024).toFixed(2)} MB total`);
 console.log(`Done! ${processed} converted, ${skipped} skipped.`);

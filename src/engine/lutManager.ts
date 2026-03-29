@@ -13,10 +13,6 @@ const categoryIndex = new Map<string, LUTMeta[]>();
 let initialized = false;
 let initPromise: Promise<void> | null = null;
 
-const SKIP_FOLDERS = new Set([
-  'cube', 'cubes', 'lut', 'luts', '3dl', 'files', 'rec709', 'rec.709',
-]);
-
 let thumbRenderer: WebGLRenderer | null = null;
 let thumbCanvas: HTMLCanvasElement | null = null;
 
@@ -93,7 +89,6 @@ export async function loadLUT(meta: LUTMeta): Promise<ParsedLUT> {
   const cached = parsedCache.get(meta.id);
   if (cached) return cached;
 
-  // Try IndexedDB cache first
   try {
     const dbCached = await idbGet(meta.id);
     if (dbCached) {
@@ -102,7 +97,6 @@ export async function loadLUT(meta: LUTMeta): Promise<ParsedLUT> {
     }
   } catch { /* IndexedDB unavailable */ }
 
-  // Try binary .bin file first
   if (meta.binPath) {
     try {
       const binUrl = LUT_BASE ? `${LUT_BASE}${meta.binPath}` : meta.binPath;
@@ -117,7 +111,6 @@ export async function loadLUT(meta: LUTMeta): Promise<ParsedLUT> {
     } catch (e) { console.warn('[LUT] .bin load failed, falling back to .cube:', meta.id, e); }
   }
 
-  // Fallback to .cube text
   const url = LUT_BASE ? `${LUT_BASE}${meta.path}` : meta.path;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to load LUT: ${url}`);
@@ -164,6 +157,8 @@ interface ManifestEntry {
   path: string;
   binPath?: string | null;
   thumbIndex?: number;
+  brand?: string;
+  displayName?: string;
 }
 
 async function doInit() {
@@ -173,7 +168,6 @@ async function doInit() {
     if (!resp.ok) { initialized = true; return; }
     const raw = await resp.json();
 
-    // Support both old (string[]) and new (ManifestEntry[]) manifest formats
     const entries: ManifestEntry[] = typeof raw[0] === 'string'
       ? (raw as string[]).map((p: string) => ({ path: p }))
       : raw as ManifestEntry[];
@@ -189,12 +183,12 @@ async function doInit() {
       const decodedPath = decodeURIComponent(entry.path);
       const segments = decodedPath.replace(/^\/luts\//, '').split('/');
       const filename = segments.pop()!.replace('.cube', '');
-      const folders = segments.filter((s) => !SKIP_FOLDERS.has(s.toLowerCase()));
 
       let id = filename.toLowerCase().replace(/[^a-z0-9]/g, '_');
       if (seenIds.has(id)) {
-        const folderSlug = folders.map(f => f.toLowerCase().replace(/[^a-z0-9]/g, '_')).join('_');
-        id = `${folderSlug}_${id}`;
+        const brand = entry.brand ?? 'unknown';
+        const brandSlug = brand.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        id = `${brandSlug}_${id}`;
       }
       let suffix = 2;
       const baseId = id;
@@ -203,12 +197,13 @@ async function doInit() {
       }
       seenIds.add(id);
 
-      const name = filename;
-      const category = extractCategory(folders);
+      const name = entry.displayName ?? filename;
+      const category = entry.brand ?? 'Uncategorized';
+
       const meta: LUTMeta = {
         id,
         name,
-        shortCode: '',
+        shortCode: name,
         category,
         path: entry.path,
         binPath: entry.binPath ?? null,
@@ -225,92 +220,11 @@ async function doInit() {
       bucket.push(meta);
     }
 
-    assignShortCodes();
-
     if (thumbBundlePromise) await thumbBundlePromise;
   } catch (e) {
     console.warn('[LUT] manifest load failed:', e);
   }
   initialized = true;
-}
-
-// ── Short codes ─────────────────────────────────────────────────────
-
-function buildCategoryCodes(): Map<string, string> {
-  const categories = Array.from(categoryIndex.keys());
-  const codeMap = new Map<string, string>();
-  const usedCodes = new Set<string>();
-
-  for (const cat of categories) {
-    const words = cat.split(/[\s\-]+/).filter(Boolean);
-    let code: string;
-
-    if (words.length >= 2) {
-      code = words.map((w) => w[0]).join('').toUpperCase().slice(0, 3);
-    } else {
-      code = cat.slice(0, 2).toUpperCase();
-    }
-
-    if (usedCodes.has(code)) {
-      code = cat.replace(/[\s\-]+/g, '').slice(0, 3).toUpperCase();
-    }
-    let attempt = 3;
-    while (usedCodes.has(code) && attempt < cat.length) {
-      attempt++;
-      code = cat.replace(/[\s\-]+/g, '').slice(0, attempt).toUpperCase();
-    }
-
-    usedCodes.add(code);
-    codeMap.set(cat, code);
-  }
-  return codeMap;
-}
-
-function assignShortCodes() {
-  const catCodes = buildCategoryCodes();
-  const usedShortCodes = new Set<string>();
-
-  for (const meta of LUT_REGISTRY) {
-    const prefix = catCodes.get(meta.category) ?? 'XX';
-    const numMatch = meta.name.match(/(\d+)\s*$/);
-
-    let code: string;
-    if (numMatch) {
-      code = `${prefix}${numMatch[1]}`;
-    } else {
-      const cleaned = meta.name.replace(/[^a-zA-Z0-9]/g, '');
-      code = `${prefix}-${cleaned.slice(0, 3).toUpperCase()}`;
-    }
-
-    if (usedShortCodes.has(code)) {
-      let suffix = 'a';
-      while (usedShortCodes.has(`${code}${suffix}`)) {
-        suffix = String.fromCharCode(suffix.charCodeAt(0) + 1);
-      }
-      code = `${code}${suffix}`;
-    }
-
-    usedShortCodes.add(code);
-    meta.shortCode = code;
-  }
-}
-
-// ── Category extraction ─────────────────────────────────────────────
-
-function extractCategory(folders: string[]): string {
-  if (folders.length === 0) return 'uncategorized';
-
-  const meaningful = folders.find((f) => {
-    const fl = f.toLowerCase();
-    return !fl.includes('collection') && !fl.includes('pack') && !SKIP_FOLDERS.has(fl);
-  });
-
-  const raw = meaningful ?? folders[folders.length - 1];
-  return raw
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase() || 'uncategorized';
 }
 
 // ── Thumbnail generation ────────────────────────────────────────────

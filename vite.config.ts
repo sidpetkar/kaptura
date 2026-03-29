@@ -40,7 +40,9 @@ function lutManifestPlugin(): Plugin {
       } catch { /* regenerate */ }
     }
 
-    const files = scanLuts(lutsDir, publicDir);
+    // Only scan Film Luts [ALL] subfolder
+    const filmDir = path.join(lutsDir, 'Film Luts [ALL]');
+    const files = fs.existsSync(filmDir) ? scanLuts(filmDir, publicDir) : [];
     const manifest = JSON.stringify(files);
     fs.writeFileSync(outPath, manifest, 'utf-8');
     return files.length;

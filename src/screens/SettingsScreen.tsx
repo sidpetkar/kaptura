@@ -155,7 +155,7 @@ function SettingsBody() {
 
       {/* LUT Packs */}
       <section>
-        <h2 className="text-[13px] tracking-widest text-muted mb-4">Lut Packs</h2>
+        <h2 className="text-[13px] tracking-widest text-muted mb-4">Film Stocks</h2>
 
         {!lutsReady || !loaded ? (
           <p className="text-[11px] text-muted tracking-wider animate-pulse">Loading categories...</p>
@@ -173,7 +173,7 @@ function SettingsBody() {
                   className="flex items-center justify-between py-3 px-1 border-b border-white/5"
                 >
                   <div className="flex flex-col items-start gap-0.5">
-                    <span className="text-[13px] tracking-wider font-medium capitalize text-accent">
+                    <span className="text-[13px] tracking-wider font-medium text-accent">
                       {cat}
                     </span>
                     <span className="text-[10px] tracking-wider text-muted">

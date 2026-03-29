@@ -17,12 +17,12 @@ export default function FolderTabs({ active, onChange, lutsReady, prefsKey }: Pr
     <div className="flex gap-1 px-4 py-2 overflow-x-auto" style={{ touchAction: 'pan-x' }}>
       {categories.map((cat) => {
         const key = cat === 'all' ? 'all presets' : cat;
-        const label = cat === 'all' ? 'all presets' : cat;
+        const label = cat === 'all' ? 'All' : cat;
         return (
           <button
             key={key}
             onClick={() => onChange(key)}
-            className={`shrink-0 px-3 py-1.5 text-[12px] tracking-widest font-medium rounded-sm transition-colors whitespace-nowrap capitalize ${
+            className={`shrink-0 px-3 py-1.5 text-[12px] tracking-widest font-medium rounded-sm transition-colors whitespace-nowrap ${
               active === key
                 ? 'bg-accent/10 text-accent border border-accent/30'
                 : 'text-muted hover:text-accent'

@@ -214,8 +214,8 @@ export default function FilterStrip({ activeTab, activeLutId, onSelect, onClear,
                   loading="lazy"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-[7px] text-muted">{lut.shortCode}</span>
+                <div className="w-full h-full flex items-center justify-center px-1">
+                  <span className="text-[7px] text-muted text-center leading-tight">{lut.name}</span>
                 </div>
               )}
               <div
@@ -224,11 +224,11 @@ export default function FilterStrip({ activeTab, activeLutId, onSelect, onClear,
                 }`}
               >
                 <span
-                  className={`text-[10px] font-medium tracking-wider ${
+                  className={`text-[8px] font-medium leading-tight text-center px-0.5 ${
                     isActive ? 'text-surface' : 'text-white/70'
                   }`}
                 >
-                  {lut.shortCode}
+                  {lut.name}
                 </span>
               </div>
             </div>
