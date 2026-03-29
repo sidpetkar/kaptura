@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import type { GreetingFrame } from '../hooks/useGreeting';
+import { useEnterFromBottomSnap } from '../hooks/useEnterFromBottomSnap';
 
 const FRAME_H = 46;
 const CYCLE_MS = 10_000;
@@ -61,6 +62,8 @@ export default function WelcomeGreeting({ frames, logoSrc }: Props) {
     prevRef.current = 0;
   }, [slots.length]);
 
+  const enterSnap = useEnterFromBottomSnap(index);
+
   if (slots.length === 0) return null;
 
   return (
@@ -72,13 +75,18 @@ export default function WelcomeGreeting({ frames, logoSrc }: Props) {
         const active = i === index;
         const leaving = i === prevRef.current && i !== index;
 
-        let cls = 'transition-all duration-500 ease-out ';
+        let cls = '';
         if (active) {
-          cls += 'opacity-100 translate-y-0';
-        } else if (leaving) {
-          cls += 'opacity-0 -translate-y-full';
+          cls = enterSnap
+            ? 'transition-none opacity-100 translate-y-full'
+            : 'transition-all duration-500 ease-out opacity-100 translate-y-0';
         } else {
-          cls += 'opacity-0 translate-y-full pointer-events-none';
+          cls = 'transition-all duration-500 ease-out ';
+          if (leaving) {
+            cls += 'opacity-0 -translate-y-full';
+          } else {
+            cls += 'opacity-0 translate-y-full pointer-events-none';
+          }
         }
 
         return (

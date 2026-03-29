@@ -1,9 +1,77 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { ReactNode, MutableRefObject } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useEnterFromBottomSnap } from '../hooks/useEnterFromBottomSnap';
 
 const COLLAGES = ['/solaire-collage.png', '/solaire-collage-2.png'];
 const CYCLE_MS = 4000;
+/** Fixed height for stacked headline lines (36px × 1.1 × 2) */
+const AUTH_HEADLINE_H = 86;
+
+const AUTH_HEADLINE_SLIDES: ReactNode[] = [
+  <>
+    Made for people
+    <br />
+    who notice
+  </>,
+  <>
+    Your 24/7 film lab
+    <br />
+    in-browser
+  </>,
+];
+
+function AuthHeadline({
+  frame,
+  prevFrameRef,
+  className,
+}: {
+  frame: number;
+  prevFrameRef: MutableRefObject<number>;
+  className?: string;
+}) {
+  const enterSnap = useEnterFromBottomSnap(frame);
+
+  return (
+    <div
+      className={`grid overflow-hidden ${className ?? ''}`}
+      style={{ height: AUTH_HEADLINE_H }}
+    >
+      {AUTH_HEADLINE_SLIDES.map((content, i) => {
+        const active = i === frame;
+        const leaving = i === prevFrameRef.current && i !== frame;
+        let cls = '';
+        if (active) {
+          cls = enterSnap
+            ? 'transition-none opacity-100 translate-y-full'
+            : 'transition-all duration-500 ease-out opacity-100 translate-y-0';
+        } else {
+          cls = 'transition-all duration-500 ease-out ';
+          if (leaving) {
+            cls += 'opacity-0 -translate-y-full';
+          } else {
+            cls += 'opacity-0 translate-y-full pointer-events-none';
+          }
+        }
+        return (
+          <div
+            key={i}
+            style={{ height: AUTH_HEADLINE_H, gridArea: '1 / 1' }}
+            className={cls}
+          >
+            <h1
+              className="text-[36px] leading-[1.1] font-medium text-accent uppercase lg:whitespace-nowrap"
+              style={{ letterSpacing: '-0.04em' }}
+            >
+              {content}
+            </h1>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function GoogleIcon() {
   return (
@@ -20,11 +88,15 @@ export default function AuthScreen() {
   const navigate = useNavigate();
   const { signInWithGoogle, skip, isGuest } = useAuth();
   const [busy, setBusy] = useState(false);
-  const [activeCollage, setActiveCollage] = useState(0);
+  const [visualFrame, setVisualFrame] = useState(0);
+  const prevFrameRef = useRef(0);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setActiveCollage((prev) => (prev + 1) % COLLAGES.length);
+      setVisualFrame((prev) => {
+        prevFrameRef.current = prev;
+        return (prev + 1) % COLLAGES.length;
+      });
     }, CYCLE_MS);
     return () => clearInterval(timer);
   }, []);
@@ -70,7 +142,7 @@ export default function AuthScreen() {
                 src={src}
                 alt=""
                 className="absolute inset-0 w-full h-full object-cover object-left-top transition-opacity duration-1000 ease-in-out"
-                style={{ opacity: activeCollage === i ? 1 : 0 }}
+                style={{ opacity: visualFrame === i ? 1 : 0 }}
                 draggable={false}
               />
             ))}
@@ -90,14 +162,7 @@ export default function AuthScreen() {
                 className="h-9 mb-0.5"
                 draggable={false}
               />
-              <h1
-                className="text-[36px] leading-[1.1] font-medium text-accent uppercase"
-                style={{ letterSpacing: '-0.04em' }}
-              >
-                Made for people
-                <br />
-                who notice
-              </h1>
+              <AuthHeadline frame={visualFrame} prevFrameRef={prevFrameRef} />
               <p
                 className="mt-0.5 text-[14px] leading-snug text-white font-light uppercase text-right"
                 style={{ letterSpacing: '0.5px' }}
@@ -193,14 +258,7 @@ export default function AuthScreen() {
             className="h-9 mb-0.5"
             draggable={false}
           />
-          <h1
-            className="text-[36px] leading-[1.1] font-medium text-accent uppercase whitespace-nowrap"
-            style={{ letterSpacing: '-0.04em' }}
-          >
-            Made for people
-            <br />
-            who notice
-          </h1>
+          <AuthHeadline frame={visualFrame} prevFrameRef={prevFrameRef} />
           <p
             className="mt-0.5 text-[14px] leading-snug text-white font-light uppercase self-end text-right whitespace-nowrap"
             style={{ letterSpacing: '0.5px' }}
