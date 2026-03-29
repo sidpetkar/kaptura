@@ -38,14 +38,25 @@ That's it — Vercel auto-deploys after every push.
 
 ## LUT Management (Cloudflare R2)
 
-### Upload LUTs to cloud storage
-Run this whenever you add/remove LUT packs from `public/luts/`:
+### Upload a NEW LUT folder to cloud storage
+When you add a new LUT pack folder to `public/luts/`:
+
+```bash
+node scripts/build-lut-binaries.mjs
+node scripts/upload-folder-r2.mjs "folder name"
+```
+
+**Always run build first!** It creates compact `.bin` files needed for mobile.
+Then the upload sends only that folder's files + updated manifest. Fast.
+
+### Re-upload ALL LUTs (rarely needed)
+Only if you need to re-upload everything from scratch:
 
 ```bash
 node scripts/upload-luts-r2.mjs
 ```
 
-This scans `public/luts/`, generates a `manifest.json`, and uploads everything to your Cloudflare R2 bucket. Takes ~8 seconds per file.
+This uploads every file. Takes ~8 seconds per file — slow for large collections.
 
 ### First-time setup (already done)
 ```bash
@@ -136,9 +147,10 @@ git push
 ```
 
 ### "I added new LUT packs"
-1. Drop the folders into `public/luts/`
-2. Run `node scripts/upload-luts-r2.mjs`
-3. Restart dev server to see them locally: `npm run dev`
+1. Drop the folder into `public/luts/`
+2. Build binaries: `node scripts/build-lut-binaries.mjs`
+3. Upload to R2: `node scripts/upload-folder-r2.mjs "folder name"`
+4. Restart dev server to see them locally: `npm run dev`
 
 ### "I want to undo my recent changes"
 ```bash

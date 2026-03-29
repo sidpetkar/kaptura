@@ -156,7 +156,7 @@ export default function FilterStrip({ activeTab, activeLutId, onSelect, onClear,
   }, []);
 
   return (
-    <div ref={stripRef} className="flex gap-2 px-4 overflow-x-auto items-center" style={{ height: 92, touchAction: 'pan-x' }}>
+    <div ref={stripRef} className="flex gap-1 px-4 overflow-x-auto items-center" style={{ height: 92, touchAction: 'pan-x' }}>
       <button
         onClick={onClear}
         className="shrink-0"

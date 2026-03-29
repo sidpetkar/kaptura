@@ -924,7 +924,7 @@ export default function EditScreen() {
             {activePanel === 'ai' && !aiEditing && !aiLoading && maskMode === 'off' && (
               <button
                 onClick={handleMaskStart}
-                className="p-1 text-white hover:text-white transition-colors md:hidden"
+                className="p-1 mr-2 text-white hover:text-white transition-colors md:hidden"
                 title="Brush mask"
               >
                 <PaintBrush size={20} weight="bold" />
